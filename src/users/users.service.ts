@@ -1,9 +1,15 @@
-import { ConflictException, Injectable, BadRequestException } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import {
+  ConflictException,
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
+import { and, eq, or } from 'drizzle-orm';
 import { PostgresError } from 'postgres';
 import { DatabaseService } from '../database/database.service';
 import { classes, users } from '../database/schema';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
@@ -68,5 +74,41 @@ export class UsersService {
 
       throw error;
     }
+  }
+
+  async updateProfile(firebaseUid: string, dto: UpdateUserDto) {
+    const existing = await this.findByFirebaseUid(firebaseUid);
+
+    if (!existing) {
+      throw new NotFoundException('TDC user profile not found');
+    }
+
+    const [updated] = await this.databaseService.db
+      .update(users)
+      .set({
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.mobileNumber !== undefined && { mobileNumber: dto.mobileNumber }),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.firebaseUid, firebaseUid))
+      .returning();
+
+    return updated;
+  }
+
+  async findAllStudents(classId?: string) {
+    const query = this.databaseService.db
+      .select()
+      .from(users)
+      .where(
+        classId
+          ? and(
+              eq(users.role, 'STUDENT'),
+              or(eq(users.languageClassId, classId), eq(users.technologyClassId, classId)),
+            )
+          : eq(users.role, 'STUDENT'),
+      );
+
+    return query;
   }
 }

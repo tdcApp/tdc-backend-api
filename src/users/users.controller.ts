@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   NotFoundException,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -11,6 +12,7 @@ import {
 import type { AuthenticatedRequest } from '../auth/guards/firebase-auth.guard';
 import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { UsersService } from './users.service';
 import { UserResponseMapper } from './mappers/user-response.mapper';
@@ -45,6 +47,16 @@ export class UsersController {
 
     const user = await this.usersService.createProfile(request.user.uid, email, dto);
 
+    return UserResponseMapper.toDto(user);
+  }
+
+  @Patch('me')
+  @UseGuards(FirebaseAuthGuard)
+  async updateProfile(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: UpdateUserDto,
+  ): Promise<UserResponseDto> {
+    const user = await this.usersService.updateProfile(request.user.uid, dto);
     return UserResponseMapper.toDto(user);
   }
 }

@@ -113,12 +113,8 @@
           "name": "announcements_class_id_classes_id_fk",
           "tableFrom": "announcements",
           "tableTo": "classes",
-          "columnsFrom": [
-            "class_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["class_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "cascade"
         },
@@ -126,12 +122,8 @@
           "name": "announcements_created_by_users_firebase_uid_fk",
           "tableFrom": "announcements",
           "tableTo": "users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "firebase_uid"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["firebase_uid"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -199,12 +191,8 @@
           "name": "assignment_submissions_assignment_id_assignments_id_fk",
           "tableFrom": "assignment_submissions",
           "tableTo": "assignments",
-          "columnsFrom": [
-            "assignment_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["assignment_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         },
@@ -212,12 +200,8 @@
           "name": "assignment_submissions_mentee_uid_users_firebase_uid_fk",
           "tableFrom": "assignment_submissions",
           "tableTo": "users",
-          "columnsFrom": [
-            "mentee_uid"
-          ],
-          "columnsTo": [
-            "firebase_uid"
-          ],
+          "columnsFrom": ["mentee_uid"],
+          "columnsTo": ["firebase_uid"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -225,10 +209,7 @@
       "compositePrimaryKeys": {
         "assignment_submissions_pk": {
           "name": "assignment_submissions_pk",
-          "columns": [
-            "assignment_id",
-            "mentee_uid"
-          ]
+          "columns": ["assignment_id", "mentee_uid"]
         }
       },
       "uniqueConstraints": {},
@@ -323,12 +304,8 @@
           "name": "assignments_class_id_classes_id_fk",
           "tableFrom": "assignments",
           "tableTo": "classes",
-          "columnsFrom": [
-            "class_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["class_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         }
@@ -406,12 +383,8 @@
           "name": "classes_mentor_uid_users_firebase_uid_fk",
           "tableFrom": "classes",
           "tableTo": "users",
-          "columnsFrom": [
-            "mentor_uid"
-          ],
-          "columnsTo": [
-            "firebase_uid"
-          ],
+          "columnsFrom": ["mentor_uid"],
+          "columnsTo": ["firebase_uid"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -421,10 +394,7 @@
         "classes_name_type_unique": {
           "name": "classes_name_type_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "name",
-            "type"
-          ]
+          "columns": ["name", "type"]
         }
       },
       "policies": {},
@@ -513,12 +483,8 @@
           "name": "quiz_questions_quiz_id_quizzes_id_fk",
           "tableFrom": "quiz_questions",
           "tableTo": "quizzes",
-          "columnsFrom": [
-            "quiz_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["quiz_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         }
@@ -528,10 +494,7 @@
         "quiz_questions_order_unique": {
           "name": "quiz_questions_order_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "quiz_id",
-            "question_order"
-          ]
+          "columns": ["quiz_id", "question_order"]
         }
       },
       "policies": {},
@@ -611,12 +574,8 @@
           "name": "quiz_submissions_quiz_id_quizzes_id_fk",
           "tableFrom": "quiz_submissions",
           "tableTo": "quizzes",
-          "columnsFrom": [
-            "quiz_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["quiz_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         },
@@ -624,12 +583,8 @@
           "name": "quiz_submissions_student_uid_users_firebase_uid_fk",
           "tableFrom": "quiz_submissions",
           "tableTo": "users",
-          "columnsFrom": [
-            "student_uid"
-          ],
-          "columnsTo": [
-            "firebase_uid"
-          ],
+          "columnsFrom": ["student_uid"],
+          "columnsTo": ["firebase_uid"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -637,19 +592,14 @@
       "compositePrimaryKeys": {
         "quiz_submissions_pk": {
           "name": "quiz_submissions_pk",
-          "columns": [
-            "quiz_id",
-            "student_uid"
-          ]
+          "columns": ["quiz_id", "student_uid"]
         }
       },
       "uniqueConstraints": {
         "quiz_submissions_client_submission_id_unique": {
           "name": "quiz_submissions_client_submission_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "client_submission_id"
-          ]
+          "columns": ["client_submission_id"]
         }
       },
       "policies": {},
@@ -772,12 +722,8 @@
           "name": "quizzes_class_id_classes_id_fk",
           "tableFrom": "quizzes",
           "tableTo": "classes",
-          "columnsFrom": [
-            "class_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["class_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "cascade"
         },
@@ -785,12 +731,8 @@
           "name": "quizzes_created_by_users_firebase_uid_fk",
           "tableFrom": "quizzes",
           "tableTo": "users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "firebase_uid"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["firebase_uid"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -926,12 +868,8 @@
           "name": "schedules_class_id_classes_id_fk",
           "tableFrom": "schedules",
           "tableTo": "classes",
-          "columnsFrom": [
-            "class_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["class_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         },
@@ -939,12 +877,8 @@
           "name": "schedules_teacher_uid_users_firebase_uid_fk",
           "tableFrom": "schedules",
           "tableTo": "users",
-          "columnsFrom": [
-            "teacher_uid"
-          ],
-          "columnsTo": [
-            "firebase_uid"
-          ],
+          "columnsFrom": ["teacher_uid"],
+          "columnsTo": ["firebase_uid"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -1073,12 +1007,8 @@
           "name": "users_language_class_id_classes_id_fk",
           "tableFrom": "users",
           "tableTo": "classes",
-          "columnsFrom": [
-            "language_class_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["language_class_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "cascade"
         },
@@ -1086,12 +1016,8 @@
           "name": "users_technology_class_id_classes_id_fk",
           "tableFrom": "users",
           "tableTo": "classes",
-          "columnsFrom": [
-            "technology_class_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["technology_class_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "cascade"
         }
@@ -1107,29 +1033,17 @@
     "public.audience": {
       "name": "audience",
       "schema": "public",
-      "values": [
-        "ALL",
-        "LANGUAGE",
-        "TECHNOLOGY",
-        "CLASS"
-      ]
+      "values": ["ALL", "LANGUAGE", "TECHNOLOGY", "CLASS"]
     },
     "public.class_type": {
       "name": "class_type",
       "schema": "public",
-      "values": [
-        "LANGUAGE",
-        "TECHNOLOGY"
-      ]
+      "values": ["LANGUAGE", "TECHNOLOGY"]
     },
     "public.user_role": {
       "name": "user_role",
       "schema": "public",
-      "values": [
-        "STUDENT",
-        "TEACHER",
-        "ADMIN"
-      ]
+      "values": ["STUDENT", "TEACHER", "ADMIN"]
     }
   },
   "schemas": {},
