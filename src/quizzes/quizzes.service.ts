@@ -6,7 +6,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { and, eq, inArray, or } from 'drizzle-orm';
+import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { PostgresError } from 'postgres';
 import { DatabaseService } from '../database/database.service';
 import { classes, quizQuestions, quizSubmissions, quizzes, users } from '../database/schema';
@@ -45,7 +45,8 @@ export class QuizzesService {
     if (user.role === 'ADMIN' || user.role === 'TEACHER') {
       return this.databaseService.db
         .select()
-        .from(quizzes);
+        .from(quizzes)
+        .orderBy(quizzes.createdAt);
     }
 
     // Build audience filter for students
@@ -70,9 +71,26 @@ export class QuizzesService {
     }
 
     return this.databaseService.db
-      .select()
+      .select({
+        id: quizzes.id,
+        title: quizzes.title,
+        audience: quizzes.audience,
+        classId: quizzes.classId,
+        createdBy: quizzes.createdBy,
+        createdAt: quizzes.createdAt,
+        updatedAt: quizzes.updatedAt,
+        isSubmitted: sql<boolean>`CASE WHEN ${quizSubmissions.submittedAt} IS NOT NULL THEN true ELSE false END`,
+      })
       .from(quizzes)
-      .where(or(...audienceConditions));
+      .leftJoin(
+        quizSubmissions,
+        and(
+          eq(quizzes.id, quizSubmissions.quizId),
+          eq(quizSubmissions.studentUid, firebaseUid),
+        ),
+      )
+      .where(or(...audienceConditions))
+      .orderBy(quizzes.createdAt);
   }
 
   /**
@@ -107,9 +125,27 @@ export class QuizzesService {
       .orderBy(quizQuestions.questionOrder);
 
     const isStudent = user.role === 'STUDENT';
+    let isSubmitted = false;
+    if (isStudent) {
+      const [existingSubmission] = await this.databaseService.db
+        .select({ submittedAt: quizSubmissions.submittedAt })
+        .from(quizSubmissions)
+        .where(
+          and(
+            eq(quizSubmissions.quizId, quizId),
+            eq(quizSubmissions.studentUid, firebaseUid),
+          ),
+        )
+        .limit(1);
+
+      if (existingSubmission) {
+        isSubmitted = true;
+      }
+    }
 
     return {
       ...quiz,
+      isSubmitted,
       questions: questions.map((q) => ({
         id: q.id,
         question: q.question,
