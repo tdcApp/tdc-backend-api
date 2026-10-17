@@ -120,7 +120,7 @@ export class SchedulesService {
       .where(eq(users.firebaseUid, firebaseUid))
       .limit(1);
 
-    if (user && user.role !== 'ADMIN' && existing.teacherUid !== firebaseUid) {
+    if (user && user.role !== 'ADMIN' && user.role !== 'TEACHER' && existing.teacherUid !== firebaseUid) {
       throw new ForbiddenException('You can only update your own schedules');
     }
 
@@ -167,7 +167,7 @@ export class SchedulesService {
         .where(eq(users.firebaseUid, firebaseUid))
         .limit(1);
 
-      if (user && user.role !== 'ADMIN' && existing.teacherUid !== firebaseUid) {
+      if (user && user.role !== 'ADMIN' && user.role !== 'TEACHER' && existing.teacherUid !== firebaseUid) {
         throw new ForbiddenException('You can only delete your own schedules');
       }
     }

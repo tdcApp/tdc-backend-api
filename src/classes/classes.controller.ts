@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
 import { ClassesService } from './classes.service';
 import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
 import { GetClassesQueryDto } from './dto/get-classes-query.dto';
@@ -11,5 +11,11 @@ export class ClassesController {
   @UseGuards(FirebaseAuthGuard)
   getClasses(@Query() query: GetClassesQueryDto) {
     return this.classesService.findAll(query);
+  }
+
+  @Get(':id/students')
+  @UseGuards(FirebaseAuthGuard)
+  getClassStudents(@Param('id', ParseUUIDPipe) id: string) {
+    return this.classesService.findStudentsForClass(id);
   }
 }

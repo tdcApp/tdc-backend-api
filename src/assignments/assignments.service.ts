@@ -36,23 +36,10 @@ export class AssignmentsService {
       throw new ForbiddenException('TDC user profile not found');
     }
 
-    if (user.role === 'TEACHER' || user.role === 'ADMIN') {
-      // Teacher sees assignments for classes they mentor
-      const mentorClasses = await this.databaseService.db
-        .select({ id: classes.id })
-        .from(classes)
-        .where(eq(classes.mentorUid, firebaseUid));
-
-      const classIds = mentorClasses.map((c) => c.id);
-
-      if (classIds.length === 0) {
-        return [];
-      }
-
+    if (user.role === 'ADMIN' || user.role === 'TEACHER') {
       return this.databaseService.db
         .select()
-        .from(assignments)
-        .where(inArray(assignments.classId, classIds));
+        .from(assignments);
     }
 
     // Student sees assignments for their enrolled classes
@@ -102,7 +89,7 @@ export class AssignmentsService {
       .where(eq(users.firebaseUid, firebaseUid))
       .limit(1);
 
-    if (user && user.role !== 'ADMIN' && classRecord.mentorUid !== firebaseUid) {
+    if (user && user.role !== 'ADMIN' && user.role !== 'TEACHER' && classRecord.mentorUid !== firebaseUid) {
       throw new ForbiddenException('You can only create assignments for classes you mentor');
     }
 
@@ -164,8 +151,17 @@ export class AssignmentsService {
     }
 
     return this.databaseService.db
-      .select()
+      .select({
+        id: assignmentSubmissions.id,
+        assignmentId: assignmentSubmissions.assignmentId,
+        menteeUid: assignmentSubmissions.menteeUid,
+        submissionUrl: assignmentSubmissions.submissionUrl,
+        submittedAt: assignmentSubmissions.submittedAt,
+        studentName: users.name,
+        studentEmail: users.email,
+      })
       .from(assignmentSubmissions)
+      .leftJoin(users, eq(assignmentSubmissions.menteeUid, users.firebaseUid))
       .where(eq(assignmentSubmissions.assignmentId, assignmentId));
   }
 
@@ -209,8 +205,8 @@ export class AssignmentsService {
       throw new UnauthorizedException();
     }
 
-    // Admin can delete any; teacher must be the mentor of the assignment's class
-    if (user.role !== 'ADMIN') {
+    // Admin and Teacher can delete any assignment
+    if (user.role !== 'ADMIN' && user.role !== 'TEACHER') {
       const [classRecord] = await this.databaseService.db
         .select({ mentorUid: classes.mentorUid })
         .from(classes)

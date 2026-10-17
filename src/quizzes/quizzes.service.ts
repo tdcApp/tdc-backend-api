@@ -42,11 +42,10 @@ export class QuizzesService {
       throw new ForbiddenException('TDC user profile not found');
     }
 
-    if (user.role === 'TEACHER' || user.role === 'ADMIN') {
+    if (user.role === 'ADMIN' || user.role === 'TEACHER') {
       return this.databaseService.db
         .select()
-        .from(quizzes)
-        .where(eq(quizzes.createdBy, firebaseUid));
+        .from(quizzes);
     }
 
     // Build audience filter for students
@@ -270,15 +269,35 @@ export class QuizzesService {
     }
 
     return this.databaseService.db
-      .select()
+      .select({
+        quizId: quizSubmissions.quizId,
+        studentUid: quizSubmissions.studentUid,
+        score: quizSubmissions.score,
+        totalQuestions: quizSubmissions.totalQuestions,
+        clientSubmissionId: quizSubmissions.clientSubmissionId,
+        submittedAt: quizSubmissions.submittedAt,
+        studentName: users.name,
+        studentEmail: users.email,
+      })
       .from(quizSubmissions)
+      .leftJoin(users, eq(quizSubmissions.studentUid, users.firebaseUid))
       .where(eq(quizSubmissions.quizId, quizId));
   }
 
   async getMySubmission(quizId: string, firebaseUid: string) {
     const [submission] = await this.databaseService.db
-      .select()
+      .select({
+        quizId: quizSubmissions.quizId,
+        studentUid: quizSubmissions.studentUid,
+        score: quizSubmissions.score,
+        totalQuestions: quizSubmissions.totalQuestions,
+        clientSubmissionId: quizSubmissions.clientSubmissionId,
+        submittedAt: quizSubmissions.submittedAt,
+        studentName: users.name,
+        studentEmail: users.email,
+      })
       .from(quizSubmissions)
+      .leftJoin(users, eq(quizSubmissions.studentUid, users.firebaseUid))
       .where(and(eq(quizSubmissions.quizId, quizId), eq(quizSubmissions.studentUid, firebaseUid)))
       .limit(1);
 
@@ -311,7 +330,7 @@ export class QuizzesService {
       throw new UnauthorizedException();
     }
 
-    if (user.role !== 'ADMIN' && quiz.createdBy !== firebaseUid) {
+    if (user.role !== 'ADMIN' && user.role !== 'TEACHER' && quiz.createdBy !== firebaseUid) {
       throw new ForbiddenException('You can only delete your own quizzes');
     }
 

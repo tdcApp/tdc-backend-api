@@ -43,7 +43,6 @@ export class AnnouncementsService {
       return this.databaseService.db
         .select()
         .from(announcements)
-        .where(eq(announcements.createdBy, firebaseUid))
         .orderBy(announcements.createdAt);
     }
 
@@ -145,8 +144,8 @@ export class AnnouncementsService {
       throw new UnauthorizedException();
     }
 
-    // Admin can delete any; teacher can only delete their own
-    if (user.role !== 'ADMIN' && announcement.createdBy !== firebaseUid) {
+    // Admin and Teacher can delete any announcement
+    if (user.role !== 'ADMIN' && user.role !== 'TEACHER' && announcement.createdBy !== firebaseUid) {
       throw new ForbiddenException('You can only delete your own announcements');
     }
 
