@@ -10,12 +10,16 @@ import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { PostgresError } from 'postgres';
 import { DatabaseService } from '../database/database.service';
 import { classes, quizQuestions, quizSubmissions, quizzes, users } from '../database/schema';
+import { NotificationsService } from '../notifications/notifications.service';
 import type { CreateQuizDto } from './dto/create-quiz.dto';
 import type { SubmitQuizDto } from './dto/submit-quiz.dto';
 
 @Injectable()
 export class QuizzesService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   /**
    * Returns quizzes visible to the requesting user based on their role and class enrolment.
@@ -184,7 +188,7 @@ export class QuizzesService {
       }
     }
 
-    return this.databaseService.db.transaction(async (tx) => {
+    const result = await this.databaseService.db.transaction(async (tx) => {
       const [quiz] = await tx
         .insert(quizzes)
         .values({
@@ -210,6 +214,16 @@ export class QuizzesService {
 
       return { ...quiz, questions: insertedQuestions };
     });
+
+    void this.notificationsService.sendToAudience(
+      dto.audience,
+      dto.classId,
+      'New Quiz Available! 📝',
+      `Quiz "${dto.title}" has been published.`,
+      { type: 'QUIZ', id: result.id },
+    );
+
+    return result;
   }
 
   /**

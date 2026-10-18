@@ -9,12 +9,16 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { PostgresError } from 'postgres';
 import { DatabaseService } from '../database/database.service';
 import { assignments, assignmentSubmissions, classes, users } from '../database/schema';
+import { NotificationsService } from '../notifications/notifications.service';
 import type { CreateAssignmentDto } from './dto/create-assignment.dto';
 import type { SubmitAssignmentDto } from './dto/submit-assignment.dto';
 
 @Injectable()
 export class AssignmentsService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   /**
    * Returns assignments relevant to the requesting user.
@@ -102,6 +106,13 @@ export class AssignmentsService {
         dueAt: new Date(dto.dueAt),
       })
       .returning();
+
+    void this.notificationsService.sendToClass(
+      dto.classId,
+      'New Assignment Posted! 📋',
+      `Assignment: "${dto.title}" is now available.`,
+      { type: 'ASSIGNMENT', id: assignment.id },
+    );
 
     return assignment;
   }

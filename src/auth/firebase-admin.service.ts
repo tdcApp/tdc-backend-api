@@ -2,10 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { App, cert, getApps, initializeApp } from 'firebase-admin/app';
 import { Auth, getAuth } from 'firebase-admin/auth';
+import { Messaging, getMessaging } from 'firebase-admin/messaging';
 
 @Injectable()
 export class FirebaseAdminService {
   private readonly auth: Auth;
+  private readonly messaging: Messaging;
 
   constructor(private readonly configService: ConfigService) {
     const existingApps = getApps();
@@ -26,9 +28,14 @@ export class FirebaseAdminService {
           });
 
     this.auth = getAuth(app);
+    this.messaging = getMessaging(app);
   }
 
   getAuth(): Auth {
     return this.auth;
+  }
+
+  getMessaging(): Messaging {
+    return this.messaging;
   }
 }

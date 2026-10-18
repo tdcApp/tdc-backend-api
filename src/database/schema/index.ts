@@ -533,3 +533,41 @@ export const schedules = pgTable(
     ),
   ],
 );
+
+/* =========================================================
+   USER DEVICES (FCM PUSH NOTIFICATIONS)
+   ========================================================= */
+
+export const userDevices = pgTable(
+  'user_devices',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+
+    userId: varchar('user_id', {
+      length: 128,
+    })
+      .notNull()
+      .references(() => users.firebaseUid, {
+        onDelete: 'cascade',
+        onUpdate: 'cascade',
+      }),
+
+    fcmToken: text('fcm_token').notNull().unique(),
+
+    platform: varchar('platform', {
+      length: 20,
+    })
+      .notNull()
+      .default('ANDROID'),
+
+    updatedAt: timestamp('updated_at', {
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('user_devices_user_id_idx').on(table.userId),
+  ],
+);
+

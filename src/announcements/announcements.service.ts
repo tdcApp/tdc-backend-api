@@ -8,11 +8,15 @@ import {
 import { and, eq, inArray, or } from 'drizzle-orm';
 import { DatabaseService } from '../database/database.service';
 import { announcements, classes, users } from '../database/schema';
+import { NotificationsService } from '../notifications/notifications.service';
 import type { CreateAnnouncementDto } from './dto/create-announcement.dto';
 
 @Injectable()
 export class AnnouncementsService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   /**
    * Returns announcements visible to the requesting user.
@@ -119,6 +123,14 @@ export class AnnouncementsService {
         createdBy: firebaseUid,
       })
       .returning();
+
+    void this.notificationsService.sendToAudience(
+      dto.audience,
+      dto.classId,
+      `📢 ${dto.title}`,
+      dto.content.length > 100 ? `${dto.content.substring(0, 97)}...` : dto.content,
+      { type: 'ANNOUNCEMENT', id: announcement.id },
+    );
 
     return announcement;
   }
