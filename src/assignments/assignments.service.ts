@@ -152,7 +152,6 @@ export class AssignmentsService {
 
     return this.databaseService.db
       .select({
-        id: assignmentSubmissions.id,
         assignmentId: assignmentSubmissions.assignmentId,
         menteeUid: assignmentSubmissions.menteeUid,
         submissionUrl: assignmentSubmissions.submissionUrl,
