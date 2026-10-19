@@ -5,7 +5,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, count, eq, inArray } from 'drizzle-orm';
 import { PostgresError } from 'postgres';
 import { DatabaseService } from '../database/database.service';
 import { assignments, assignmentSubmissions, classes, users } from '../database/schema';
@@ -150,7 +150,7 @@ export class AssignmentsService {
     }
   }
 
-  async getSubmissions(assignmentId: string) {
+  async getSubmissions(assignmentId: string, page?: string, limit?: string) {
     const [assignment] = await this.databaseService.db
       .select({ id: assignments.id })
       .from(assignments)
@@ -159,6 +159,42 @@ export class AssignmentsService {
 
     if (!assignment) {
       throw new NotFoundException('Assignment not found');
+    }
+
+    if (page !== undefined) {
+      const pageNum = Math.max(1, parseInt(page, 10) || 1);
+      const limitNum = Math.max(1, parseInt(limit || '30', 10) || 30);
+      const offset = (pageNum - 1) * limitNum;
+
+      const [countResult] = await this.databaseService.db
+        .select({ count: count() })
+        .from(assignmentSubmissions)
+        .where(eq(assignmentSubmissions.assignmentId, assignmentId));
+
+      const total = Number(countResult?.count || 0);
+
+      const data = await this.databaseService.db
+        .select({
+          assignmentId: assignmentSubmissions.assignmentId,
+          menteeUid: assignmentSubmissions.menteeUid,
+          submissionUrl: assignmentSubmissions.submissionUrl,
+          submittedAt: assignmentSubmissions.submittedAt,
+          studentName: users.name,
+          studentEmail: users.email,
+        })
+        .from(assignmentSubmissions)
+        .leftJoin(users, eq(assignmentSubmissions.menteeUid, users.firebaseUid))
+        .where(eq(assignmentSubmissions.assignmentId, assignmentId))
+        .limit(limitNum)
+        .offset(offset);
+
+      return {
+        data,
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
+      };
     }
 
     return this.databaseService.db

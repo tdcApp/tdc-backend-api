@@ -8,6 +8,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -15,6 +16,8 @@ import type { AuthenticatedRequest } from '../auth/guards/firebase-auth.guard';
 import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { RateLimit } from '../common/decorators/rate-limit.decorator';
+import { RateLimitGuard } from '../common/guards/rate-limit.guard';
 import { QuizzesService } from './quizzes.service';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
@@ -44,8 +47,10 @@ export class QuizzesController {
     return this.quizzesService.create(request.user.uid, dto);
   }
 
-  /** POST /quizzes/:id/submit — Student: submit quiz answers */
+  /** POST /quizzes/:id/submit — Student: submit quiz answers (Rate limited: 3 / min) */
   @Post(':id/submit')
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 3, windowSeconds: 60 })
   submit(
     @Param('id', ParseUUIDPipe) id: string,
     @Req() request: AuthenticatedRequest,
@@ -54,12 +59,16 @@ export class QuizzesController {
     return this.quizzesService.submit(id, request.user.uid, dto);
   }
 
-  /** GET /quizzes/:id/submissions — Teacher/Admin: view all submissions */
+  /** GET /quizzes/:id/submissions — Teacher/Admin: view all submissions with optional pagination */
   @Get(':id/submissions')
   @UseGuards(RolesGuard)
   @Roles('TEACHER', 'ADMIN')
-  getSubmissions(@Param('id', ParseUUIDPipe) id: string) {
-    return this.quizzesService.getSubmissions(id);
+  getSubmissions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.quizzesService.getSubmissions(id, page, limit);
   }
 
   /** GET /quizzes/:id/my-submission — Student: view own submission */

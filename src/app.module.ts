@@ -11,6 +11,7 @@ import { QuizzesModule } from './quizzes/quizzes.module';
 import { AssignmentsModule } from './assignments/assignments.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { NotificationsModule } from './notifications/notifications.module';
       validate: validateEnvironment,
     }),
     DatabaseModule,
+    RedisModule,
     CommonModule,
     AuthModule,
     UsersModule,

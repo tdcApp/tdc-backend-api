@@ -6,15 +6,25 @@ import {
 } from '@nestjs/common';
 import { eq, inArray, or } from 'drizzle-orm';
 import { DatabaseService } from '../database/database.service';
+import { RedisService } from '../redis/redis.service';
 import { classes, schedules, users } from '../database/schema';
 import type { CreateScheduleDto } from './dto/create-schedule.dto';
 import type { UpdateScheduleDto } from './dto/update-schedule.dto';
 
 @Injectable()
 export class SchedulesService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly redisService: RedisService,
+  ) {}
 
   async findMySchedule(firebaseUid: string) {
+    const cacheKey = `schedules:user:${firebaseUid}`;
+    const cached = await this.redisService.get<any[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const [user] = await this.databaseService.db
       .select({
         role: users.role,
@@ -29,9 +39,11 @@ export class SchedulesService {
       return [];
     }
 
+    let result: any[] = [];
+
     // ADMIN: full visibility into all schedules
     if (user.role === 'ADMIN') {
-      return this.databaseService.db
+      result = await this.databaseService.db
         .select({
           id: schedules.id,
           classId: schedules.classId,
@@ -46,11 +58,9 @@ export class SchedulesService {
         })
         .from(schedules)
         .innerJoin(classes, eq(schedules.classId, classes.id));
-    }
-
-    // TEACHER: schedules where they are teacherUid OR where class mentorUid is this teacher,
-    // or fallback to all schedules so mentor has complete schedule management visibility
-    if (user.role === 'TEACHER') {
+    } else if (user.role === 'TEACHER') {
+      // TEACHER: schedules where they are teacherUid OR where class mentorUid is this teacher,
+      // or fallback to all schedules so mentor has complete schedule management visibility
       const myTaught = await this.databaseService.db
         .select({
           id: schedules.id,
@@ -69,10 +79,35 @@ export class SchedulesService {
         .where(or(eq(schedules.teacherUid, firebaseUid), eq(classes.mentorUid, firebaseUid)));
 
       if (myTaught.length > 0) {
-        return myTaught;
+        result = myTaught;
+      } else {
+        result = await this.databaseService.db
+          .select({
+            id: schedules.id,
+            classId: schedules.classId,
+            className: classes.name,
+            classType: classes.type,
+            dayOfWeek: schedules.dayOfWeek,
+            startTime: schedules.startTime,
+            endTime: schedules.endTime,
+            subject: schedules.subject,
+            room: schedules.room,
+            teacherUid: schedules.teacherUid,
+          })
+          .from(schedules)
+          .innerJoin(classes, eq(schedules.classId, classes.id));
+      }
+    } else {
+      // STUDENT: Filter by their enrolled classes
+      const classIds = [user.languageClassId, user.technologyClassId].filter(
+        (id): id is string => id !== null,
+      );
+
+      if (classIds.length === 0) {
+        return [];
       }
 
-      return this.databaseService.db
+      result = await this.databaseService.db
         .select({
           id: schedules.id,
           classId: schedules.classId,
@@ -86,34 +121,14 @@ export class SchedulesService {
           teacherUid: schedules.teacherUid,
         })
         .from(schedules)
-        .innerJoin(classes, eq(schedules.classId, classes.id));
+        .innerJoin(classes, eq(schedules.classId, classes.id))
+        .where(inArray(schedules.classId, classIds));
     }
 
-    // STUDENT: Filter by their enrolled classes
-    const classIds = [user.languageClassId, user.technologyClassId].filter(
-      (id): id is string => id !== null,
-    );
-
-    if (classIds.length === 0) {
-      return [];
+    if (result.length > 0) {
+      await this.redisService.set(cacheKey, result, 1800);
     }
-
-    return this.databaseService.db
-      .select({
-        id: schedules.id,
-        classId: schedules.classId,
-        className: classes.name,
-        classType: classes.type,
-        dayOfWeek: schedules.dayOfWeek,
-        startTime: schedules.startTime,
-        endTime: schedules.endTime,
-        subject: schedules.subject,
-        room: schedules.room,
-        teacherUid: schedules.teacherUid,
-      })
-      .from(schedules)
-      .innerJoin(classes, eq(schedules.classId, classes.id))
-      .where(inArray(schedules.classId, classIds));
+    return result;
   }
 
   async findByClass(classId: string) {
@@ -162,6 +177,7 @@ export class SchedulesService {
       })
       .returning();
 
+    await this.redisService.delPrefix('schedules:');
     return schedule;
   }
 
@@ -208,6 +224,7 @@ export class SchedulesService {
       .where(eq(schedules.id, scheduleId))
       .returning();
 
+    await this.redisService.delPrefix('schedules:');
     return updated;
   }
 
@@ -235,5 +252,6 @@ export class SchedulesService {
     }
 
     await this.databaseService.db.delete(schedules).where(eq(schedules.id, scheduleId));
+    await this.redisService.delPrefix('schedules:');
   }
 }

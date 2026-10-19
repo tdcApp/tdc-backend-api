@@ -8,6 +8,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -15,6 +16,8 @@ import type { AuthenticatedRequest } from '../auth/guards/firebase-auth.guard';
 import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { RateLimit } from '../common/decorators/rate-limit.decorator';
+import { RateLimitGuard } from '../common/guards/rate-limit.guard';
 import { AssignmentsService } from './assignments.service';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
 import { SubmitAssignmentDto } from './dto/submit-assignment.dto';
@@ -44,8 +47,10 @@ export class AssignmentsController {
     return this.assignmentsService.create(request.user.uid, dto);
   }
 
-  /** POST /assignments/:id/submit — Student: submit assignment URL */
+  /** POST /assignments/:id/submit — Student: submit assignment URL (Rate limited: 5 / min) */
   @Post(':id/submit')
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 5, windowSeconds: 60 })
   submit(
     @Param('id', ParseUUIDPipe) id: string,
     @Req() request: AuthenticatedRequest,
@@ -54,12 +59,16 @@ export class AssignmentsController {
     return this.assignmentsService.submit(id, request.user.uid, dto);
   }
 
-  /** GET /assignments/:id/submissions — Teacher/Admin: view all submissions */
+  /** GET /assignments/:id/submissions — Teacher/Admin: view all submissions with optional pagination */
   @Get(':id/submissions')
   @UseGuards(RolesGuard)
   @Roles('TEACHER', 'ADMIN')
-  getSubmissions(@Param('id', ParseUUIDPipe) id: string) {
-    return this.assignmentsService.getSubmissions(id);
+  getSubmissions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.assignmentsService.getSubmissions(id, page, limit);
   }
 
   /** GET /assignments/:id/my-submission — Student: view own submission */

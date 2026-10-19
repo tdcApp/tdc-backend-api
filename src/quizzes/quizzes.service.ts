@@ -6,7 +6,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { and, eq, inArray, or, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, or, sql } from 'drizzle-orm';
 import { PostgresError } from 'postgres';
 import { DatabaseService } from '../database/database.service';
 import { classes, quizQuestions, quizSubmissions, quizzes, users } from '../database/schema';
@@ -23,6 +23,7 @@ export class QuizzesService {
 
   /**
    * Returns quizzes visible to the requesting user based on their role and class enrolment.
+
    *
    * - TEACHER/ADMIN  → sees all quizzes they created
    * - STUDENT        → sees quizzes where audience matches their class membership:
@@ -307,7 +308,7 @@ export class QuizzesService {
     }
   }
 
-  async getSubmissions(quizId: string) {
+  async getSubmissions(quizId: string, page?: string, limit?: string) {
     const [quiz] = await this.databaseService.db
       .select({ id: quizzes.id })
       .from(quizzes)
@@ -316,6 +317,44 @@ export class QuizzesService {
 
     if (!quiz) {
       throw new NotFoundException('Quiz not found');
+    }
+
+    if (page !== undefined) {
+      const pageNum = Math.max(1, parseInt(page, 10) || 1);
+      const limitNum = Math.max(1, parseInt(limit || '30', 10) || 30);
+      const offset = (pageNum - 1) * limitNum;
+
+      const [countResult] = await this.databaseService.db
+        .select({ count: count() })
+        .from(quizSubmissions)
+        .where(eq(quizSubmissions.quizId, quizId));
+
+      const total = Number(countResult?.count || 0);
+
+      const data = await this.databaseService.db
+        .select({
+          quizId: quizSubmissions.quizId,
+          studentUid: quizSubmissions.studentUid,
+          score: quizSubmissions.score,
+          totalQuestions: quizSubmissions.totalQuestions,
+          clientSubmissionId: quizSubmissions.clientSubmissionId,
+          submittedAt: quizSubmissions.submittedAt,
+          studentName: users.name,
+          studentEmail: users.email,
+        })
+        .from(quizSubmissions)
+        .leftJoin(users, eq(quizSubmissions.studentUid, users.firebaseUid))
+        .where(eq(quizSubmissions.quizId, quizId))
+        .limit(limitNum)
+        .offset(offset);
+
+      return {
+        data,
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
+      };
     }
 
     return this.databaseService.db
