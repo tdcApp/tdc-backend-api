@@ -5,7 +5,7 @@ import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
-  private readonly client: postgres.Sql;
+  readonly client: postgres.Sql;
   readonly db: PostgresJsDatabase;
 
   constructor(private readonly configService: ConfigService) {
