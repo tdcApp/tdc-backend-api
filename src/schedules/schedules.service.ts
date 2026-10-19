@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, or } from 'drizzle-orm';
 import { DatabaseService } from '../database/database.service';
 import { classes, schedules, users } from '../database/schema';
 import type { CreateScheduleDto } from './dto/create-schedule.dto';
@@ -17,6 +17,7 @@ export class SchedulesService {
   async findMySchedule(firebaseUid: string) {
     const [user] = await this.databaseService.db
       .select({
+        role: users.role,
         languageClassId: users.languageClassId,
         technologyClassId: users.technologyClassId,
       })
@@ -28,6 +29,67 @@ export class SchedulesService {
       return [];
     }
 
+    // ADMIN: full visibility into all schedules
+    if (user.role === 'ADMIN') {
+      return this.databaseService.db
+        .select({
+          id: schedules.id,
+          classId: schedules.classId,
+          className: classes.name,
+          classType: classes.type,
+          dayOfWeek: schedules.dayOfWeek,
+          startTime: schedules.startTime,
+          endTime: schedules.endTime,
+          subject: schedules.subject,
+          room: schedules.room,
+          teacherUid: schedules.teacherUid,
+        })
+        .from(schedules)
+        .innerJoin(classes, eq(schedules.classId, classes.id));
+    }
+
+    // TEACHER: schedules where they are teacherUid OR where class mentorUid is this teacher,
+    // or fallback to all schedules so mentor has complete schedule management visibility
+    if (user.role === 'TEACHER') {
+      const myTaught = await this.databaseService.db
+        .select({
+          id: schedules.id,
+          classId: schedules.classId,
+          className: classes.name,
+          classType: classes.type,
+          dayOfWeek: schedules.dayOfWeek,
+          startTime: schedules.startTime,
+          endTime: schedules.endTime,
+          subject: schedules.subject,
+          room: schedules.room,
+          teacherUid: schedules.teacherUid,
+        })
+        .from(schedules)
+        .innerJoin(classes, eq(schedules.classId, classes.id))
+        .where(or(eq(schedules.teacherUid, firebaseUid), eq(classes.mentorUid, firebaseUid)));
+
+      if (myTaught.length > 0) {
+        return myTaught;
+      }
+
+      return this.databaseService.db
+        .select({
+          id: schedules.id,
+          classId: schedules.classId,
+          className: classes.name,
+          classType: classes.type,
+          dayOfWeek: schedules.dayOfWeek,
+          startTime: schedules.startTime,
+          endTime: schedules.endTime,
+          subject: schedules.subject,
+          room: schedules.room,
+          teacherUid: schedules.teacherUid,
+        })
+        .from(schedules)
+        .innerJoin(classes, eq(schedules.classId, classes.id));
+    }
+
+    // STUDENT: Filter by their enrolled classes
     const classIds = [user.languageClassId, user.technologyClassId].filter(
       (id): id is string => id !== null,
     );
