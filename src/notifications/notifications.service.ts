@@ -264,7 +264,12 @@ export class NotificationsService {
       };
     } catch (e: any) {
       this.logger.error('Error sending test broadcast notification', e);
-      throw e;
+      return {
+        sent: 0,
+        failed: 0,
+        totalTokens: 0,
+        message: e?.message || String(e),
+      };
     }
   }
 }

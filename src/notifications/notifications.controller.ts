@@ -29,16 +29,16 @@ export class NotificationsController {
   }
 }
 
+import { SendTestNotificationDto } from './dto/send-test-notification.dto';
+
 @Controller('notify')
 export class NotifyController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
   @Post('test')
-  async sendTestNotification(
-    @Body() body: { title?: string; body?: string; target?: string; classId?: string },
-  ) {
-    const title = body?.title || '🔔 TDC Notification Test';
-    const message = body?.body || 'Hello! Test notification for C++ and Android Developer track.';
-    return this.notificationsService.sendBroadcastTest(title, message, body?.target, body?.classId);
+  async sendTestNotification(@Body() dto: SendTestNotificationDto) {
+    const title = dto?.title || '🔔 TDC Notification Test';
+    const message = dto?.body || 'Hello! Test notification for C++ and Android Developer track.';
+    return this.notificationsService.sendBroadcastTest(title, message, dto?.target, dto?.classId);
   }
 }
