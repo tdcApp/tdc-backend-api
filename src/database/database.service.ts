@@ -21,7 +21,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit(): Promise<void> {
     try {
-      await this.client`
+      await this.client.unsafe(`
         CREATE TABLE IF NOT EXISTS user_devices (
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           user_id varchar(128) NOT NULL REFERENCES users(firebase_uid) ON DELETE CASCADE,
@@ -30,7 +30,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           updated_at timestamptz DEFAULT NOW() NOT NULL
         );
         CREATE INDEX IF NOT EXISTS user_devices_user_id_idx ON user_devices(user_id);
-      `;
+      `);
+      console.log('Successfully ensured user_devices table exists');
     } catch (e) {
       console.error('Failed to ensure user_devices table:', e);
     }

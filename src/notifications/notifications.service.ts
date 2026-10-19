@@ -34,6 +34,7 @@ export class NotificationsService {
       this.logger.log(`Registered FCM token for user ${userId}`);
     } catch (e) {
       this.logger.error(`Error registering FCM token for user ${userId}`, e);
+      throw e;
     }
   }
 
