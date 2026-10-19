@@ -78,8 +78,14 @@ export class ClassesService {
     return result;
   }
 
-  findStudentsForClass(classId: string) {
-    return this.databaseService.db
+  async findStudentsForClass(classId: string) {
+    const cacheKey = `classes:${classId}:students`;
+    const cached = await this.redisService.get<any[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const result = await this.databaseService.db
       .select()
       .from(users)
       .where(
@@ -88,5 +94,10 @@ export class ClassesService {
           eq(users.technologyClassId, classId),
         ),
       );
+
+    if (result) {
+      await this.redisService.set(cacheKey, result, 600);
+    }
+    return result;
   }
 }
