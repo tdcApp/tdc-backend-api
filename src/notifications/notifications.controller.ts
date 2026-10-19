@@ -28,3 +28,17 @@ export class NotificationsController {
     return { success: true };
   }
 }
+
+@Controller('notify')
+export class NotifyController {
+  constructor(private readonly notificationsService: NotificationsService) {}
+
+  @Post('test')
+  async sendTestNotification(
+    @Body() body: { title?: string; body?: string; target?: string; classId?: string },
+  ) {
+    const title = body?.title || '🔔 TDC Notification Test';
+    const message = body?.body || 'Hello! Test notification for C++ and Android Developer track.';
+    return this.notificationsService.sendBroadcastTest(title, message, body?.target, body?.classId);
+  }
+}

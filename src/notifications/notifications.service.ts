@@ -69,16 +69,23 @@ export class NotificationsService {
       }
 
       const messaging = this.firebaseAdminService.getMessaging();
+      // Data-only payload with high priority wakes device from Doze mode
+      // and guarantees onMessageReceived() is invoked across all app states (foreground, background, killed)
+      const stringData: Record<string, string> = {
+        title: String(title),
+        body: String(body),
+      };
+      for (const [k, v] of Object.entries(data)) {
+        if (v !== undefined && v !== null) {
+          stringData[k] = String(v);
+        }
+      }
+
       const response = await messaging.sendEachForMulticast({
         tokens,
-        notification: {
-          title,
-          body,
-        },
-        data: {
-          ...data,
-          title,
-          body,
+        data: stringData,
+        android: {
+          priority: 'high',
         },
       });
 
@@ -188,6 +195,76 @@ export class NotificationsService {
       }
     } catch (error) {
       this.logger.error(`Failed to send audience notification (${audience})`, error);
+    }
+  }
+
+  async sendBroadcastTest(
+    title: string,
+    body: string,
+    target = 'ALL',
+    classId?: string,
+  ): Promise<{ sent: number; failed: number; totalTokens: number; message?: string }> {
+    try {
+      let tokens: string[] = [];
+
+      if (classId) {
+        const enrolledUsers = await this.databaseService.db
+          .select({ uid: users.firebaseUid })
+          .from(users)
+          .where(
+            and(
+              eq(users.role, 'STUDENT'),
+              or(eq(users.languageClassId, classId), eq(users.technologyClassId, classId)),
+            ),
+          );
+        const uids = enrolledUsers.map((u) => u.uid);
+        if (uids.length > 0) {
+          const devices = await this.databaseService.db
+            .select({ token: userDevices.fcmToken })
+            .from(userDevices)
+            .where(inArray(userDevices.userId, uids));
+          tokens = Array.from(new Set(devices.map((d) => d.token)));
+        }
+      } else {
+        const devices = await this.databaseService.db
+          .select({ token: userDevices.fcmToken })
+          .from(userDevices);
+        tokens = Array.from(new Set(devices.map((d) => d.token)));
+      }
+
+      if (tokens.length === 0) {
+        return {
+          sent: 0,
+          failed: 0,
+          totalTokens: 0,
+          message:
+            'No registered device tokens found in database. Make sure the app has been opened with internet so it registers its token.',
+        };
+      }
+
+      const messaging = this.firebaseAdminService.getMessaging();
+      const response = await messaging.sendEachForMulticast({
+        tokens,
+        data: {
+          title: String(title),
+          body: String(body),
+          type: 'ANNOUNCEMENT',
+        },
+        android: {
+          priority: 'high',
+        },
+      });
+
+      this.logger.log(`Test multicast sent: ${response.successCount} succeeded, ${response.failureCount} failed`);
+
+      return {
+        sent: response.successCount,
+        failed: response.failureCount,
+        totalTokens: tokens.length,
+      };
+    } catch (e: any) {
+      this.logger.error('Error sending test broadcast notification', e);
+      throw e;
     }
   }
 }
