@@ -236,7 +236,9 @@ export class SchedulesService {
       .limit(1);
 
     if (!existing) {
-      throw new NotFoundException('Schedule not found');
+      // Already deleted from DB — clear Redis cache so clients don't see ghost records
+      await this.redisService.delPrefix('schedules:');
+      return;
     }
 
     if (firebaseUid) {

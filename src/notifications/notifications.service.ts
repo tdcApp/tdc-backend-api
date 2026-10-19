@@ -15,6 +15,17 @@ export class NotificationsService {
 
   async registerToken(userId: string, token: string, platform = 'ANDROID'): Promise<void> {
     try {
+      const [user] = await this.databaseService.db
+        .select({ firebaseUid: users.firebaseUid })
+        .from(users)
+        .where(eq(users.firebaseUid, userId))
+        .limit(1);
+
+      if (!user) {
+        this.logger.warn(`User ${userId} not found in users table; skipping FCM registration until profile setup`);
+        return;
+      }
+
       await this.databaseService.db
         .insert(userDevices)
         .values({
