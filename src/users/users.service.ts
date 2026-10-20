@@ -88,11 +88,13 @@ export class UsersService {
       throw new BadRequestException('Academic year cannot be changed once set');
     }
 
+    const mobile = dto.mobileNumber ?? (dto.phone ? dto.phone : undefined);
+
     const [updated] = await this.databaseService.db
       .update(users)
       .set({
         ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.mobileNumber !== undefined && { mobileNumber: dto.mobileNumber }),
+        ...(mobile !== undefined && { mobileNumber: mobile }),
         ...(dto.year !== undefined && !existing.year && { year: dto.year }),
         updatedAt: new Date(),
       })
