@@ -62,6 +62,10 @@ export const users = pgTable(
       onUpdate: 'cascade',
     }),
 
+    year: varchar('year', {
+      length: 20,
+    }),
+
     createdAt: timestamp('created_at', {
       withTimezone: true,
     })
@@ -140,6 +144,10 @@ export const quizzes = pgTable(
     }).notNull(),
 
     audience: audienceEnum('audience').notNull(),
+
+    targetYears: varchar('target_years', {
+      length: 100,
+    }),
 
     classId: uuid('class_id').references(() => classes.id, {
       onDelete: 'set null',

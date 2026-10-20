@@ -63,6 +63,7 @@ export class UsersService {
           role: 'STUDENT',
           languageClassId: languageClass.id,
           technologyClassId: technologyClass.id,
+          year: dto.year ?? null,
         })
         .returning();
 
@@ -83,11 +84,16 @@ export class UsersService {
       throw new NotFoundException('TDC user profile not found');
     }
 
+    if (existing.year && dto.year && dto.year !== existing.year) {
+      throw new BadRequestException('Academic year cannot be changed once set');
+    }
+
     const [updated] = await this.databaseService.db
       .update(users)
       .set({
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.mobileNumber !== undefined && { mobileNumber: dto.mobileNumber }),
+        ...(dto.year !== undefined && !existing.year && { year: dto.year }),
         updatedAt: new Date(),
       })
       .where(eq(users.firebaseUid, firebaseUid))

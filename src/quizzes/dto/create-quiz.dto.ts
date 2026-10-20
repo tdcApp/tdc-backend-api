@@ -3,6 +3,7 @@ import {
   IsArray,
   IsEnum,
   IsNotEmpty,
+  IsOptional,
   IsString,
   IsUUID,
   Length,
@@ -44,6 +45,11 @@ export class CreateQuizDto {
 
   @IsEnum(['ALL', 'LANGUAGE', 'TECHNOLOGY', 'CLASS'])
   audience!: 'ALL' | 'LANGUAGE' | 'TECHNOLOGY' | 'CLASS';
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  targetYears?: string;
 
   @ValidateIf((o: CreateQuizDto) => o.audience === 'CLASS')
   @IsUUID()

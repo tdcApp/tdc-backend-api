@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsUUID, Length, Matches } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsUUID, Length, Matches } from 'class-validator';
 
 export class CreateUserDto {
   @IsString()
@@ -17,4 +17,9 @@ export class CreateUserDto {
 
   @IsUUID()
   technologyClassId!: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 20)
+  year?: string;
 }

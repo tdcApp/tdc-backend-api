@@ -13,4 +13,9 @@ export class UpdateUserDto {
     message: 'Mobile number must contain exactly 10 digits',
   })
   mobileNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 20)
+  year?: string;
 }

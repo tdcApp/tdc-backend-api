@@ -6,7 +6,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { and, count, eq, inArray, or, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { PostgresError } from 'postgres';
 import { DatabaseService } from '../database/database.service';
 import { classes, quizQuestions, quizSubmissions, quizzes, users } from '../database/schema';
@@ -38,6 +38,7 @@ export class QuizzesService {
         role: users.role,
         languageClassId: users.languageClassId,
         technologyClassId: users.technologyClassId,
+        year: users.year,
       })
       .from(users)
       .where(eq(users.firebaseUid, firebaseUid))
@@ -75,11 +76,20 @@ export class QuizzesService {
       );
     }
 
+    // Academic year condition: accessible if targetYears is NULL/empty/ALL, or matches student's year
+    const yearCondition = or(
+      isNull(quizzes.targetYears),
+      eq(quizzes.targetYears, ''),
+      eq(quizzes.targetYears, 'ALL'),
+      user.year ? sql`position(${user.year} in ${quizzes.targetYears}) > 0` : sql`false`,
+    );
+
     return this.databaseService.db
       .select({
         id: quizzes.id,
         title: quizzes.title,
         audience: quizzes.audience,
+        targetYears: quizzes.targetYears,
         classId: quizzes.classId,
         createdBy: quizzes.createdBy,
         createdAt: quizzes.createdAt,
@@ -94,7 +104,7 @@ export class QuizzesService {
           eq(quizSubmissions.studentUid, firebaseUid),
         ),
       )
-      .where(or(...audienceConditions))
+      .where(and(or(...audienceConditions), yearCondition))
       .orderBy(quizzes.createdAt);
   }
 
@@ -104,7 +114,7 @@ export class QuizzesService {
    */
   async findOne(quizId: string, firebaseUid: string) {
     const [user] = await this.databaseService.db
-      .select({ role: users.role })
+      .select({ role: users.role, year: users.year })
       .from(users)
       .where(eq(users.firebaseUid, firebaseUid))
       .limit(1);
@@ -123,13 +133,19 @@ export class QuizzesService {
       throw new NotFoundException('Quiz not found');
     }
 
+    const isStudent = user.role === 'STUDENT';
+    if (isStudent && quiz.targetYears && quiz.targetYears !== 'ALL' && quiz.targetYears.trim() !== '') {
+      if (!user.year || !quiz.targetYears.includes(user.year)) {
+        throw new ForbiddenException('This quiz is not available for your academic year');
+      }
+    }
+
     const questions = await this.databaseService.db
       .select()
       .from(quizQuestions)
       .where(eq(quizQuestions.quizId, quizId))
       .orderBy(quizQuestions.questionOrder);
 
-    const isStudent = user.role === 'STUDENT';
     let isSubmitted = false;
     if (isStudent) {
       const [existingSubmission] = await this.databaseService.db
@@ -195,6 +211,7 @@ export class QuizzesService {
         .values({
           title: dto.title,
           audience: dto.audience,
+          targetYears: dto.targetYears ?? null,
           classId: dto.classId ?? null,
           createdBy: firebaseUid,
         })
@@ -254,15 +271,27 @@ export class QuizzesService {
       throw new ConflictException('You have already submitted this quiz');
     }
 
-    // Verify quiz exists
+    // Verify quiz exists and check academic year eligibility
+    const [user] = await this.databaseService.db
+      .select({ role: users.role, year: users.year })
+      .from(users)
+      .where(eq(users.firebaseUid, firebaseUid))
+      .limit(1);
+
     const [quiz] = await this.databaseService.db
-      .select({ id: quizzes.id })
+      .select({ id: quizzes.id, targetYears: quizzes.targetYears })
       .from(quizzes)
       .where(eq(quizzes.id, quizId))
       .limit(1);
 
     if (!quiz) {
       throw new NotFoundException('Quiz not found');
+    }
+
+    if (user?.role === 'STUDENT' && quiz.targetYears && quiz.targetYears !== 'ALL' && quiz.targetYears.trim() !== '') {
+      if (!user.year || !quiz.targetYears.includes(user.year)) {
+        throw new ForbiddenException('This quiz is not available for your academic year');
+      }
     }
 
     // Fetch all questions for server-side scoring

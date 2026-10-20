@@ -8,6 +8,7 @@ export class UserResponseDto {
   role!: UserRoleEnum;
   languageClassId!: string | null;
   technologyClassId!: string | null;
+  year!: string | null;
   createdAt!: Date;
   updatedAt!: Date;
 }

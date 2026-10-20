@@ -9,6 +9,7 @@ export class UserResponseMapper {
     role: UserResponseDto['role'];
     languageClassId: string | null;
     technologyClassId: string | null;
+    year?: string | null;
     createdAt: Date;
     updatedAt: Date;
   }): UserResponseDto {
@@ -20,6 +21,7 @@ export class UserResponseMapper {
       role: user.role,
       languageClassId: user.languageClassId,
       technologyClassId: user.technologyClassId,
+      year: user.year ?? null,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
