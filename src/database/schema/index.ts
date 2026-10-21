@@ -66,6 +66,10 @@ export const users = pgTable(
       length: 20,
     }),
 
+    enrollmentNumber: varchar('enrollment_number', {
+      length: 100,
+    }),
+
     createdAt: timestamp('created_at', {
       withTimezone: true,
     })
@@ -336,6 +340,10 @@ export const assignments = pgTable(
         onDelete: 'cascade',
         onUpdate: 'cascade',
       }),
+
+    createdBy: varchar('created_by', {
+      length: 128,
+    }),
 
     dueAt: timestamp('due_at', {
       withTimezone: true,

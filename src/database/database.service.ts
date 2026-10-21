@@ -31,9 +31,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         );
         CREATE INDEX IF NOT EXISTS user_devices_user_id_idx ON user_devices(user_id);
         ALTER TABLE users ADD COLUMN IF NOT EXISTS year varchar(20);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS enrollment_number varchar(100);
         ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS target_years varchar(100);
+        ALTER TABLE assignments ADD COLUMN IF NOT EXISTS created_by varchar(128);
       `);
-      console.log('Successfully ensured user_devices, users.year, and quizzes.target_years exist');
+      console.log('Successfully ensured user_devices, users.year, users.enrollment_number, quizzes.target_years, and assignments.created_by exist');
     } catch (e) {
       console.error('Failed to ensure schema updates:', e);
     }

@@ -9,6 +9,7 @@ export class UserResponseDto {
   languageClassId!: string | null;
   technologyClassId!: string | null;
   year!: string | null;
+  enrollmentNumber!: string | null;
   createdAt!: Date;
   updatedAt!: Date;
 }

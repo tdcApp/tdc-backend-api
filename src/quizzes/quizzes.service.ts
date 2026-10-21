@@ -50,8 +50,21 @@ export class QuizzesService {
 
     if (user.role === 'ADMIN' || user.role === 'TEACHER') {
       return this.databaseService.db
-        .select()
+        .select({
+          id: quizzes.id,
+          title: quizzes.title,
+          audience: quizzes.audience,
+          targetYears: quizzes.targetYears,
+          classId: quizzes.classId,
+          createdBy: quizzes.createdBy,
+          createdAt: quizzes.createdAt,
+          updatedAt: quizzes.updatedAt,
+          isSubmitted: sql<boolean>`false`,
+          createdByName: sql<string>`CASE WHEN ${users.role} = 'ADMIN' THEN 'ADMIN' WHEN ${users.name} IS NOT NULL THEN ${users.name} ELSE 'Teacher' END`,
+          creatorRole: users.role,
+        })
         .from(quizzes)
+        .leftJoin(users, eq(users.firebaseUid, quizzes.createdBy))
         .orderBy(quizzes.createdAt);
     }
 
@@ -95,8 +108,11 @@ export class QuizzesService {
         createdAt: quizzes.createdAt,
         updatedAt: quizzes.updatedAt,
         isSubmitted: sql<boolean>`CASE WHEN ${quizSubmissions.submittedAt} IS NOT NULL THEN true ELSE false END`,
+        createdByName: sql<string>`CASE WHEN ${users.role} = 'ADMIN' THEN 'ADMIN' WHEN ${users.name} IS NOT NULL THEN ${users.name} ELSE 'Teacher' END`,
+        creatorRole: users.role,
       })
       .from(quizzes)
+      .leftJoin(users, eq(users.firebaseUid, quizzes.createdBy))
       .leftJoin(
         quizSubmissions,
         and(
@@ -124,8 +140,20 @@ export class QuizzesService {
     }
 
     const [quiz] = await this.databaseService.db
-      .select()
+      .select({
+        id: quizzes.id,
+        title: quizzes.title,
+        audience: quizzes.audience,
+        targetYears: quizzes.targetYears,
+        classId: quizzes.classId,
+        createdBy: quizzes.createdBy,
+        createdAt: quizzes.createdAt,
+        updatedAt: quizzes.updatedAt,
+        createdByName: sql<string>`CASE WHEN ${users.role} = 'ADMIN' THEN 'ADMIN' WHEN ${users.name} IS NOT NULL THEN ${users.name} ELSE 'Teacher' END`,
+        creatorRole: users.role,
+      })
       .from(quizzes)
+      .leftJoin(users, eq(users.firebaseUid, quizzes.createdBy))
       .where(eq(quizzes.id, quizId))
       .limit(1);
 

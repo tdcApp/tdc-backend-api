@@ -10,6 +10,7 @@ export class UserResponseMapper {
     languageClassId: string | null;
     technologyClassId: string | null;
     year?: string | null;
+    enrollmentNumber?: string | null;
     createdAt: Date;
     updatedAt: Date;
   }): UserResponseDto {
@@ -22,6 +23,7 @@ export class UserResponseMapper {
       languageClassId: user.languageClassId,
       technologyClassId: user.technologyClassId,
       year: user.year ?? null,
+      enrollmentNumber: user.enrollmentNumber ?? null,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };

@@ -5,7 +5,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { and, count, eq, inArray } from 'drizzle-orm';
+import { and, count, eq, inArray, sql } from 'drizzle-orm';
 import { PostgresError } from 'postgres';
 import { DatabaseService } from '../database/database.service';
 import { assignments, assignmentSubmissions, classes, users } from '../database/schema';
@@ -40,10 +40,29 @@ export class AssignmentsService {
       throw new ForbiddenException('TDC user profile not found');
     }
 
+    const selectFields = {
+      id: assignments.id,
+      title: assignments.title,
+      description: assignments.description,
+      classId: assignments.classId,
+      createdBy: assignments.createdBy,
+      dueAt: assignments.dueAt,
+      createdAt: assignments.createdAt,
+      updatedAt: assignments.updatedAt,
+      createdByName: sql<string>`CASE WHEN ${users.role} = 'ADMIN' THEN 'ADMIN' WHEN ${users.name} IS NOT NULL THEN ${users.name} ELSE 'Teacher' END`,
+      creatorRole: users.role,
+    };
+
     if (user.role === 'ADMIN' || user.role === 'TEACHER') {
       return this.databaseService.db
-        .select()
-        .from(assignments);
+        .select(selectFields)
+        .from(assignments)
+        .leftJoin(classes, eq(assignments.classId, classes.id))
+        .leftJoin(
+          users,
+          eq(users.firebaseUid, sql`COALESCE(${assignments.createdBy}, ${classes.mentorUid})`),
+        )
+        .orderBy(assignments.createdAt);
     }
 
     // Student sees assignments for their enrolled classes
@@ -56,15 +75,37 @@ export class AssignmentsService {
     }
 
     return this.databaseService.db
-      .select()
+      .select(selectFields)
       .from(assignments)
-      .where(inArray(assignments.classId, classIds));
+      .leftJoin(classes, eq(assignments.classId, classes.id))
+      .leftJoin(
+        users,
+        eq(users.firebaseUid, sql`COALESCE(${assignments.createdBy}, ${classes.mentorUid})`),
+      )
+      .where(inArray(assignments.classId, classIds))
+      .orderBy(assignments.createdAt);
   }
 
   async findOne(assignmentId: string) {
     const [assignment] = await this.databaseService.db
-      .select()
+      .select({
+        id: assignments.id,
+        title: assignments.title,
+        description: assignments.description,
+        classId: assignments.classId,
+        createdBy: assignments.createdBy,
+        dueAt: assignments.dueAt,
+        createdAt: assignments.createdAt,
+        updatedAt: assignments.updatedAt,
+        createdByName: sql<string>`CASE WHEN ${users.role} = 'ADMIN' THEN 'ADMIN' WHEN ${users.name} IS NOT NULL THEN ${users.name} ELSE 'Teacher' END`,
+        creatorRole: users.role,
+      })
       .from(assignments)
+      .leftJoin(classes, eq(assignments.classId, classes.id))
+      .leftJoin(
+        users,
+        eq(users.firebaseUid, sql`COALESCE(${assignments.createdBy}, ${classes.mentorUid})`),
+      )
       .where(eq(assignments.id, assignmentId))
       .limit(1);
 
@@ -103,6 +144,7 @@ export class AssignmentsService {
         title: dto.title,
         description: dto.description ?? null,
         classId: dto.classId,
+        createdBy: firebaseUid,
         dueAt: new Date(dto.dueAt),
       })
       .returning();

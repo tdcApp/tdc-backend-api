@@ -64,6 +64,7 @@ export class UsersService {
           languageClassId: languageClass.id,
           technologyClassId: technologyClass.id,
           year: dto.year ?? null,
+          enrollmentNumber: dto.enrollmentNumber ?? null,
         })
         .returning();
 
@@ -89,6 +90,7 @@ export class UsersService {
     }
 
     const mobile = dto.mobileNumber ?? (dto.phone ? dto.phone : undefined);
+    const enrollment = dto.enrollmentNumber ?? dto.enrollment_number;
 
     const [updated] = await this.databaseService.db
       .update(users)
@@ -96,6 +98,7 @@ export class UsersService {
         ...(dto.name !== undefined && { name: dto.name }),
         ...(mobile !== undefined && { mobileNumber: mobile }),
         ...(dto.year !== undefined && !existing.year && { year: dto.year }),
+        ...(enrollment !== undefined && { enrollmentNumber: enrollment }),
         updatedAt: new Date(),
       })
       .where(eq(users.firebaseUid, firebaseUid))
