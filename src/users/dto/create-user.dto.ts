@@ -6,17 +6,35 @@ export class CreateUserDto {
   @Length(2, 255)
   name!: string;
 
+  @IsOptional()
   @IsString()
   @Matches(/^\d{10}$/, {
     message: 'Mobile number must contain exactly 10 digits',
   })
-  mobileNumber!: string;
+  mobileNumber?: string;
 
-  @IsUUID()
-  languageClassId!: string;
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{10}$/, {
+    message: 'Mobile number must contain exactly 10 digits',
+  })
+  mobile_number?: string;
 
+  @IsOptional()
   @IsUUID()
-  technologyClassId!: string;
+  languageClassId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  language_class_id?: string;
+
+  @IsOptional()
+  @IsUUID()
+  technologyClassId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  technology_class_id?: string;
 
   @IsOptional()
   @IsString()
@@ -27,4 +45,9 @@ export class CreateUserDto {
   @IsString()
   @Length(1, 100)
   enrollmentNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  enrollment_number?: string;
 }

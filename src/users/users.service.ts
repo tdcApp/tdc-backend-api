@@ -32,10 +32,27 @@ export class UsersService {
       throw new ConflictException('User profile already exists');
     }
 
+    const languageClassId = dto.languageClassId ?? dto.language_class_id;
+    const technologyClassId = dto.technologyClassId ?? dto.technology_class_id;
+    const mobileNumber = dto.mobileNumber ?? dto.mobile_number;
+    const enrollmentNumber = dto.enrollmentNumber ?? dto.enrollment_number ?? null;
+
+    if (!mobileNumber) {
+      throw new BadRequestException('Mobile number is required and must contain exactly 10 digits');
+    }
+
+    if (!languageClassId) {
+      throw new BadRequestException('Please select a language class');
+    }
+
+    if (!technologyClassId) {
+      throw new BadRequestException('Please select a technology class');
+    }
+
     const [languageClass] = await this.databaseService.db
       .select({ id: classes.id })
       .from(classes)
-      .where(and(eq(classes.id, dto.languageClassId), eq(classes.type, 'LANGUAGE')))
+      .where(and(eq(classes.id, languageClassId), eq(classes.type, 'LANGUAGE')))
       .limit(1);
 
     if (!languageClass) {
@@ -45,7 +62,7 @@ export class UsersService {
     const [technologyClass] = await this.databaseService.db
       .select({ id: classes.id })
       .from(classes)
-      .where(and(eq(classes.id, dto.technologyClassId), eq(classes.type, 'TECHNOLOGY')))
+      .where(and(eq(classes.id, technologyClassId), eq(classes.type, 'TECHNOLOGY')))
       .limit(1);
 
     if (!technologyClass) {
@@ -59,12 +76,12 @@ export class UsersService {
           firebaseUid,
           email,
           name: dto.name,
-          mobileNumber: dto.mobileNumber,
+          mobileNumber,
           role: 'STUDENT',
           languageClassId: languageClass.id,
           technologyClassId: technologyClass.id,
           year: dto.year ?? null,
-          enrollmentNumber: dto.enrollmentNumber ?? null,
+          enrollmentNumber,
         })
         .returning();
 
