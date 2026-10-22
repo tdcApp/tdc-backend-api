@@ -464,6 +464,22 @@ export const announcements = pgTable(
         onUpdate: 'cascade',
       }),
 
+    tag: varchar('tag', {
+      length: 50,
+    })
+      .default('GENERAL')
+      .notNull(),
+
+    targetScreen: varchar('target_screen', {
+      length: 50,
+    })
+      .default('ANNOUNCEMENT')
+      .notNull(),
+
+    targetId: varchar('target_id', {
+      length: 128,
+    }),
+
     createdAt: timestamp('created_at', {
       withTimezone: true,
     })

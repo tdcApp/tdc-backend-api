@@ -127,6 +127,18 @@ export class AnnouncementsService {
       }
     }
 
+    const normalizedTag = (dto.tag || 'GENERAL').toUpperCase();
+    const normalizedTargetScreen = (
+      dto.targetScreen ||
+      (normalizedTag === 'QUIZ'
+        ? 'QUIZ'
+        : normalizedTag === 'ASSIGNMENT'
+          ? 'ASSIGNMENT'
+          : normalizedTag === 'SCHEDULE'
+            ? 'SCHEDULE'
+            : 'ANNOUNCEMENT')
+    ).toUpperCase();
+
     const [announcement] = await this.databaseService.db
       .insert(announcements)
       .values({
@@ -134,16 +146,35 @@ export class AnnouncementsService {
         content: dto.content,
         audience: dto.audience,
         classId: dto.classId ?? null,
+        tag: normalizedTag,
+        targetScreen: normalizedTargetScreen,
+        targetId: dto.targetId ?? null,
         createdBy: firebaseUid,
       })
       .returning();
 
+    const tagEmoji =
+      normalizedTag === 'QUIZ'
+        ? '📝'
+        : normalizedTag === 'ASSIGNMENT'
+          ? '📚'
+          : normalizedTag === 'SCHEDULE'
+            ? '📅'
+            : normalizedTag === 'URGENT'
+              ? '🚨'
+              : '📢';
+
     void this.notificationsService.sendToAudience(
       dto.audience,
       dto.classId,
-      `📢 ${dto.title}`,
+      `${tagEmoji} ${dto.title}`,
       dto.content.length > 100 ? `${dto.content.substring(0, 97)}...` : dto.content,
-      { type: 'ANNOUNCEMENT', id: announcement.id },
+      {
+        type: normalizedTargetScreen,
+        id: dto.targetId || announcement.id,
+        tag: normalizedTag,
+        announcementId: announcement.id,
+      },
     );
 
     return announcement;
