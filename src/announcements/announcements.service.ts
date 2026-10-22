@@ -22,19 +22,11 @@ export class AnnouncementsService {
 
   private async getUserProfile(firebaseUid: string) {
     const userCacheKey = `user:profile:${firebaseUid}`;
-    let user = await this.redisService.get<{
-      role: string;
-      languageClassId: string | null;
-      technologyClassId: string | null;
-    }>(userCacheKey);
+    let user = await this.redisService.get<any>(userCacheKey);
 
-    if (!user) {
+    if (!user || typeof user.name !== 'string') {
       const [dbUser] = await this.databaseService.db
-        .select({
-          role: users.role,
-          languageClassId: users.languageClassId,
-          technologyClassId: users.technologyClassId,
-        })
+        .select()
         .from(users)
         .where(eq(users.firebaseUid, firebaseUid))
         .limit(1);

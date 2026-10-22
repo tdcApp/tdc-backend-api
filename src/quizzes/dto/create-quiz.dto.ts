@@ -1,12 +1,15 @@
 import {
   ArrayMinSize,
   IsArray,
+  IsDateString,
   IsEnum,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
   Length,
+  Min,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
@@ -54,6 +57,22 @@ export class CreateQuizDto {
   @ValidateIf((o: CreateQuizDto) => o.audience === 'CLASS')
   @IsUUID()
   classId?: string;
+
+  @IsOptional()
+  @IsDateString()
+  startTime?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  enteringWindow?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  totalTime?: number;
 
   @IsArray()
   @ArrayMinSize(1)

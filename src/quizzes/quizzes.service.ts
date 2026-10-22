@@ -25,21 +25,11 @@ export class QuizzesService {
 
   private async getUserProfile(firebaseUid: string) {
     const userCacheKey = `user:profile:${firebaseUid}`;
-    let user = await this.redisService.get<{
-      role: string;
-      languageClassId: string | null;
-      technologyClassId: string | null;
-      year: string | null;
-    }>(userCacheKey);
+    let user = await this.redisService.get<any>(userCacheKey);
 
-    if (!user) {
+    if (!user || typeof user.name !== 'string') {
       const [dbUser] = await this.databaseService.db
-        .select({
-          role: users.role,
-          languageClassId: users.languageClassId,
-          technologyClassId: users.technologyClassId,
-          year: users.year,
-        })
+        .select()
         .from(users)
         .where(eq(users.firebaseUid, firebaseUid))
         .limit(1);
@@ -49,7 +39,6 @@ export class QuizzesService {
         await this.redisService.set(userCacheKey, user, 300);
       }
     }
-
     return user ?? null;
   }
 
@@ -77,6 +66,9 @@ export class QuizzesService {
           createdBy: quizzes.createdBy,
           createdAt: quizzes.createdAt,
           updatedAt: quizzes.updatedAt,
+          startTime: quizzes.startTime,
+          enteringWindow: quizzes.enteringWindow,
+          totalTime: quizzes.totalTime,
           isSubmitted: sql<boolean>`false`,
           createdByName: sql<string>`CASE WHEN ${users.role} = 'ADMIN' THEN 'ADMIN' WHEN ${users.name} IS NOT NULL THEN ${users.name} ELSE 'Teacher' END`,
           creatorRole: users.role,
@@ -128,6 +120,9 @@ export class QuizzesService {
         createdBy: quizzes.createdBy,
         createdAt: quizzes.createdAt,
         updatedAt: quizzes.updatedAt,
+        startTime: quizzes.startTime,
+        enteringWindow: quizzes.enteringWindow,
+        totalTime: quizzes.totalTime,
         isSubmitted: sql<boolean>`CASE WHEN ${quizSubmissions.submittedAt} IS NOT NULL THEN true ELSE false END`,
         createdByName: sql<string>`CASE WHEN ${users.role} = 'ADMIN' THEN 'ADMIN' WHEN ${users.name} IS NOT NULL THEN ${users.name} ELSE 'Teacher' END`,
         creatorRole: users.role,
@@ -167,6 +162,9 @@ export class QuizzesService {
         createdBy: quizzes.createdBy,
         createdAt: quizzes.createdAt,
         updatedAt: quizzes.updatedAt,
+        startTime: quizzes.startTime,
+        enteringWindow: quizzes.enteringWindow,
+        totalTime: quizzes.totalTime,
         createdByName: sql<string>`CASE WHEN ${users.role} = 'ADMIN' THEN 'ADMIN' WHEN ${users.name} IS NOT NULL THEN ${users.name} ELSE 'Teacher' END`,
         creatorRole: users.role,
       })
@@ -269,6 +267,9 @@ export class QuizzesService {
           targetYears: dto.targetYears ?? null,
           classId: dto.classId ?? null,
           createdBy: firebaseUid,
+          startTime: dto.startTime ? new Date(dto.startTime) : null,
+          enteringWindow: dto.enteringWindow ?? 15,
+          totalTime: dto.totalTime ?? 30,
         })
         .returning();
 
@@ -376,6 +377,13 @@ export class QuizzesService {
       }
     }
 
+    const startedAt = dto.startedAt ? new Date(dto.startedAt) : null;
+    const submittedAt = new Date();
+    let timeTakenSeconds = dto.timeTakenSeconds;
+    if (timeTakenSeconds === undefined && startedAt) {
+      timeTakenSeconds = Math.max(0, Math.round((submittedAt.getTime() - startedAt.getTime()) / 1000));
+    }
+
     try {
       const [submission] = await this.databaseService.db
         .insert(quizSubmissions)
@@ -385,6 +393,9 @@ export class QuizzesService {
           score,
           totalQuestions: questions.length,
           clientSubmissionId: dto.clientSubmissionId,
+          startedAt,
+          submittedAt,
+          timeTakenSeconds: timeTakenSeconds ?? null,
         })
         .returning();
 
@@ -427,13 +438,22 @@ export class QuizzesService {
           score: quizSubmissions.score,
           totalQuestions: quizSubmissions.totalQuestions,
           clientSubmissionId: quizSubmissions.clientSubmissionId,
+          startedAt: quizSubmissions.startedAt,
           submittedAt: quizSubmissions.submittedAt,
+          timeTakenSeconds: quizSubmissions.timeTakenSeconds,
           studentName: users.name,
           studentEmail: users.email,
+          studentEnrollment: users.enrollmentNumber,
+          enrollmentNumber: users.enrollmentNumber,
         })
         .from(quizSubmissions)
         .leftJoin(users, eq(quizSubmissions.studentUid, users.firebaseUid))
         .where(eq(quizSubmissions.quizId, quizId))
+        .orderBy(
+          sql`${quizSubmissions.score} DESC`,
+          sql`${quizSubmissions.submittedAt} ASC`,
+          sql`${quizSubmissions.timeTakenSeconds} ASC NULLS LAST`
+        )
         .limit(limitNum)
         .offset(offset);
 
@@ -453,13 +473,22 @@ export class QuizzesService {
         score: quizSubmissions.score,
         totalQuestions: quizSubmissions.totalQuestions,
         clientSubmissionId: quizSubmissions.clientSubmissionId,
+        startedAt: quizSubmissions.startedAt,
         submittedAt: quizSubmissions.submittedAt,
+        timeTakenSeconds: quizSubmissions.timeTakenSeconds,
         studentName: users.name,
         studentEmail: users.email,
+        studentEnrollment: users.enrollmentNumber,
+        enrollmentNumber: users.enrollmentNumber,
       })
       .from(quizSubmissions)
       .leftJoin(users, eq(quizSubmissions.studentUid, users.firebaseUid))
-      .where(eq(quizSubmissions.quizId, quizId));
+      .where(eq(quizSubmissions.quizId, quizId))
+      .orderBy(
+        sql`${quizSubmissions.score} DESC`,
+        sql`${quizSubmissions.submittedAt} ASC`,
+        sql`${quizSubmissions.timeTakenSeconds} ASC NULLS LAST`
+      );
   }
 
   async getMySubmission(quizId: string, firebaseUid: string) {
@@ -470,7 +499,9 @@ export class QuizzesService {
         score: quizSubmissions.score,
         totalQuestions: quizSubmissions.totalQuestions,
         clientSubmissionId: quizSubmissions.clientSubmissionId,
+        startedAt: quizSubmissions.startedAt,
         submittedAt: quizSubmissions.submittedAt,
+        timeTakenSeconds: quizSubmissions.timeTakenSeconds,
         studentName: users.name,
         studentEmail: users.email,
       })

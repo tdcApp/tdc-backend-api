@@ -1,4 +1,15 @@
-import { IsArray, ArrayMinSize, IsEnum, IsUUID } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsDateString,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsUUID,
+  Min,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class SubmitQuizAnswerDto {
   @IsUUID()
@@ -7,9 +18,6 @@ export class SubmitQuizAnswerDto {
   @IsEnum(['A', 'B', 'C', 'D'])
   selectedOption!: 'A' | 'B' | 'C' | 'D';
 }
-
-import { ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
 
 export class SubmitQuizDto {
   /**
@@ -24,4 +32,14 @@ export class SubmitQuizDto {
   @ValidateNested({ each: true })
   @Type(() => SubmitQuizAnswerDto)
   answers!: SubmitQuizAnswerDto[];
+
+  @IsOptional()
+  @IsDateString()
+  startedAt?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  timeTakenSeconds?: number;
 }

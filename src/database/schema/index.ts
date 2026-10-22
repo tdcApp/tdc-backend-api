@@ -167,6 +167,14 @@ export const quizzes = pgTable(
         onUpdate: 'cascade',
       }),
 
+    startTime: timestamp('start_time', {
+      withTimezone: true,
+    }),
+
+    enteringWindow: integer('entering_window').default(15),
+
+    totalTime: integer('total_time').default(30).notNull(),
+
     createdAt: timestamp('created_at', {
       withTimezone: true,
     })
@@ -284,6 +292,12 @@ export const quizSubmissions = pgTable(
     totalQuestions: integer('total_questions').notNull(),
 
     clientSubmissionId: uuid('client_submission_id').notNull().unique(),
+
+    startedAt: timestamp('started_at', {
+      withTimezone: true,
+    }),
+
+    timeTakenSeconds: integer('time_taken_seconds'),
 
     submittedAt: timestamp('submitted_at', {
       withTimezone: true,

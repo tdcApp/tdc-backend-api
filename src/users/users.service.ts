@@ -22,7 +22,7 @@ export class UsersService {
   async findByFirebaseUid(firebaseUid: string) {
     const cacheKey = `user:profile:${firebaseUid}`;
     const cached = await this.redisService.get<any>(cacheKey);
-    if (cached) {
+    if (cached && typeof cached.name === 'string' && typeof cached.email === 'string') {
       return cached;
     }
 
