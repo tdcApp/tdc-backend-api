@@ -1,0 +1,42 @@
+[
+  {
+    "question": "What is the output of print(2 ** 3) in Python?",
+    "optionA": "6",
+    "optionB": "8",
+    "optionC": "9",
+    "optionD": "Error",
+    "correctOption": "B"
+  },
+  {
+    "question": "Which of the following data types is immutable in Python?",
+    "optionA": "List",
+    "optionB": "Dictionary",
+    "optionC": "Set",
+    "optionD": "Tuple",
+    "correctOption": "D"
+  },
+  {
+    "question": "What keyword is used to define a function in Python?",
+    "optionA": "func",
+    "optionB": "def",
+    "optionC": "function",
+    "optionD": "define",
+    "correctOption": "B"
+  },
+  {
+    "question": "Which method removes whitespace from both ends of a string in Python?",
+    "optionA": "trim()",
+    "optionB": "clean()",
+    "optionC": "strip()",
+    "optionD": "cut()",
+    "correctOption": "C"
+  },
+  {
+    "question": "What is the time complexity of searching by key in a Python dictionary on average?",
+    "optionA": "O(1)",
+    "optionB": "O(n)",
+    "optionC": "O(log n)",
+    "optionD": "O(n^2)",
+    "correctOption": "A"
+  }
+]
