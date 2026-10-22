@@ -199,6 +199,10 @@ export class QuizzesService {
       .where(eq(quizQuestions.quizId, quizId))
       .orderBy(quizQuestions.questionOrder);
 
+    const orderedQuestions = isStudent
+      ? this.seededShuffle(questions, `${quizId}_${firebaseUid}`)
+      : questions;
+
     let isSubmitted = false;
     let activeAttempt: {
       startedAt: string;
@@ -260,7 +264,7 @@ export class QuizzesService {
       ...quiz,
       isSubmitted,
       activeAttempt,
-      questions: questions.map((q) => ({
+      questions: orderedQuestions.map((q) => ({
         id: q.id,
         question: q.question,
         optionA: q.optionA,
@@ -749,4 +753,28 @@ export class QuizzesService {
     await this.databaseService.db.delete(quizzes).where(eq(quizzes.id, quizId));
     await this.redisService.del(`quiz:questions:${quizId}`);
   }
+
+  /**
+   * Deterministic Mulberry32 Fisher-Yates shuffle seeded with a unique string.
+   */
+  private seededShuffle<T>(array: T[], seedStr: string): T[] {
+    let seed = 0;
+    for (let i = 0; i < seedStr.length; i++) {
+      seed = (seed << 5) - seed + seedStr.charCodeAt(i);
+      seed |= 0;
+    }
+    const random = () => {
+      let t = (seed += 0x6d2b79f5);
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const result = [...array];
+    for (let i = result.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+  }
 }
+
