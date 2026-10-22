@@ -11,6 +11,7 @@ import { PostgresError } from 'postgres';
 import { DatabaseService } from '../database/database.service';
 import { classes, quizQuestions, quizSubmissions, quizzes, users } from '../database/schema';
 import { NotificationsService } from '../notifications/notifications.service';
+import { RedisService } from '../redis/redis.service';
 import type { CreateQuizDto } from './dto/create-quiz.dto';
 import type { SubmitQuizDto } from './dto/submit-quiz.dto';
 
@@ -19,6 +20,7 @@ export class QuizzesService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly notificationsService: NotificationsService,
+    private readonly redisService: RedisService,
   ) {}
 
   /**
@@ -168,11 +170,20 @@ export class QuizzesService {
       }
     }
 
-    const questions = await this.databaseService.db
-      .select()
-      .from(quizQuestions)
-      .where(eq(quizQuestions.quizId, quizId))
-      .orderBy(quizQuestions.questionOrder);
+    const questionsCacheKey = `quiz:questions:${quizId}`;
+    let questions = await this.redisService.get<any[]>(questionsCacheKey);
+
+    if (!questions) {
+      questions = await this.databaseService.db
+        .select()
+        .from(quizQuestions)
+        .where(eq(quizQuestions.quizId, quizId))
+        .orderBy(quizQuestions.questionOrder);
+
+      if (questions && questions.length > 0) {
+        await this.redisService.set(questionsCacheKey, questions, 1800);
+      }
+    }
 
     let isSubmitted = false;
     if (isStudent) {
@@ -322,11 +333,20 @@ export class QuizzesService {
       }
     }
 
-    // Fetch all questions for server-side scoring
-    const questions = await this.databaseService.db
-      .select({ id: quizQuestions.id, correctOption: quizQuestions.correctOption })
-      .from(quizQuestions)
-      .where(eq(quizQuestions.quizId, quizId));
+    // Fetch all questions for server-side scoring (served from fast in-memory cache if warm)
+    const questionsCacheKey = `quiz:questions:${quizId}`;
+    let questions = await this.redisService.get<any[]>(questionsCacheKey);
+
+    if (!questions || questions.length === 0) {
+      questions = await this.databaseService.db
+        .select({ id: quizQuestions.id, correctOption: quizQuestions.correctOption })
+        .from(quizQuestions)
+        .where(eq(quizQuestions.quizId, quizId));
+
+      if (questions && questions.length > 0) {
+        await this.redisService.set(questionsCacheKey, questions, 1800);
+      }
+    }
 
     if (questions.length === 0) {
       throw new BadRequestException('Quiz has no questions');
@@ -481,5 +501,6 @@ export class QuizzesService {
     }
 
     await this.databaseService.db.delete(quizzes).where(eq(quizzes.id, quizId));
+    await this.redisService.del(`quiz:questions:${quizId}`);
   }
 }

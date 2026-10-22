@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { eq, inArray, or } from 'drizzle-orm';
+import { eq, inArray, or, sql } from 'drizzle-orm';
 import { DatabaseService } from '../database/database.service';
 import { RedisService } from '../redis/redis.service';
 import { classes, users } from '../database/schema';
@@ -20,7 +20,22 @@ export class ClassesService {
     }
 
     const conditions = query.type ? eq(classes.type, query.type) : undefined;
-    const result = await this.databaseService.db.select().from(classes).where(conditions);
+    const result = await this.databaseService.db
+      .select({
+        id: classes.id,
+        name: classes.name,
+        type: classes.type,
+        mentorUid: classes.mentorUid,
+        createdAt: classes.createdAt,
+        updatedAt: classes.updatedAt,
+        studentCount: sql<number>`COALESCE((
+          SELECT count(*)::int FROM users
+          WHERE users.language_class_id = ${classes.id}
+             OR users.technology_class_id = ${classes.id}
+        ), 0)`.as('student_count'),
+      })
+      .from(classes)
+      .where(conditions);
 
     await this.redisService.set(cacheKey, result, 3600);
     return result;

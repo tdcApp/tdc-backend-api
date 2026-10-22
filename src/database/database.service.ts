@@ -12,7 +12,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const databaseUrl = this.configService.getOrThrow<string>('DATABASE_URL');
 
     this.client = postgres(databaseUrl, {
-      max: 10,
+      max: 20,
       prepare: false,
     });
 
