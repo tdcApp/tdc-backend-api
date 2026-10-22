@@ -193,20 +193,11 @@ export class QuizzesService {
       }
     }
 
-    const questionsCacheKey = `quiz:questions:${quizId}`;
-    let questions = await this.redisService.get<any[]>(questionsCacheKey);
-
-    if (!questions) {
-      questions = await this.databaseService.db
-        .select()
-        .from(quizQuestions)
-        .where(eq(quizQuestions.quizId, quizId))
-        .orderBy(quizQuestions.questionOrder);
-
-      if (questions && questions.length > 0) {
-        await this.redisService.set(questionsCacheKey, questions, 1800);
-      }
-    }
+    const questions = await this.databaseService.db
+      .select()
+      .from(quizQuestions)
+      .where(eq(quizQuestions.quizId, quizId))
+      .orderBy(quizQuestions.questionOrder);
 
     let isSubmitted = false;
     let activeAttempt: {
@@ -526,53 +517,47 @@ export class QuizzesService {
       }
     }
 
-    // Fetch all questions for server-side scoring (served from fast in-memory cache if warm)
-    const questionsCacheKey = `quiz:questions:${quizId}`;
-    let questions = await this.redisService.get<any[]>(questionsCacheKey);
-
-    if (!questions || questions.length === 0) {
-      questions = await this.databaseService.db
-        .select({ id: quizQuestions.id, correctOption: quizQuestions.correctOption })
-        .from(quizQuestions)
-        .where(eq(quizQuestions.quizId, quizId));
-
-      if (questions && questions.length > 0) {
-        await this.redisService.set(questionsCacheKey, questions, 1800);
-      }
-    }
+    // Fetch all questions for server-side scoring directly from database
+    const questions = await this.databaseService.db
+      .select({ id: quizQuestions.id, correctOption: quizQuestions.correctOption })
+      .from(quizQuestions)
+      .where(eq(quizQuestions.quizId, quizId));
 
     if (questions.length === 0) {
       throw new BadRequestException('Quiz has no questions');
     }
 
+    const isDisqualified = Boolean(dto.isDisqualified || dto.is_disqualified);
+
     // Build answer map
-    const answerMap = new Map(dto.answers.map((a) => [a.questionId, a.selectedOption]));
+    const answers = dto.answers || [];
+    const answerMap = new Map(answers.map((a) => [a.questionId, a.selectedOption?.trim()?.toUpperCase()]));
 
     // Calculate score
     let score = 0;
     for (const q of questions) {
       const selected = answerMap.get(q.id);
-      if (selected && selected === q.correctOption) {
+      if (selected && selected === q.correctOption?.trim()?.toUpperCase()) {
         score++;
       }
     }
 
-    const startedAt = dto.startedAt ? new Date(dto.startedAt) : null;
+    const startedAt = (dto.startedAt || dto.started_at) ? new Date((dto.startedAt || dto.started_at)!) : null;
     const submittedAt = new Date();
-    let timeTakenSeconds = dto.timeTakenSeconds;
+    let timeTakenSeconds = dto.timeTakenSeconds ?? dto.time_taken_seconds;
     const effectiveStartedAt = existingSubmission?.startedAt || startedAt;
     if (timeTakenSeconds === undefined && effectiveStartedAt) {
       timeTakenSeconds = Math.max(0, Math.round((submittedAt.getTime() - new Date(effectiveStartedAt).getTime()) / 1000));
     }
 
-    const finalStatus = dto.isDisqualified ? 'DISQUALIFIED' : 'COMPLETED';
+    const finalStatus = isDisqualified ? 'DISQUALIFIED' : 'COMPLETED';
 
     try {
       if (existingSubmission) {
         const [submission] = await this.databaseService.db
           .update(quizSubmissions)
           .set({
-            score: dto.isDisqualified ? 0 : score,
+            score: isDisqualified ? 0 : score,
             totalQuestions: questions.length,
             status: finalStatus,
             submittedAt,
@@ -588,7 +573,7 @@ export class QuizzesService {
           .values({
             quizId,
             studentUid: firebaseUid,
-            score: dto.isDisqualified ? 0 : score,
+            score: isDisqualified ? 0 : score,
             totalQuestions: questions.length,
             clientSubmissionId: dto.clientSubmissionId,
             startedAt,

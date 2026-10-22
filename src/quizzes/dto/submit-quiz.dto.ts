@@ -1,10 +1,10 @@
 import {
-  ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsDateString,
-  IsEnum,
   IsInt,
   IsOptional,
+  IsString,
   IsUUID,
   Min,
   ValidateNested,
@@ -15,8 +15,8 @@ export class SubmitQuizAnswerDto {
   @IsUUID()
   questionId!: string;
 
-  @IsEnum(['A', 'B', 'C', 'D'])
-  selectedOption!: 'A' | 'B' | 'C' | 'D';
+  @IsString()
+  selectedOption!: string;
 }
 
 export class SubmitQuizDto {
@@ -28,7 +28,6 @@ export class SubmitQuizDto {
   clientSubmissionId!: string;
 
   @IsArray()
-  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => SubmitQuizAnswerDto)
   answers!: SubmitQuizAnswerDto[];
@@ -38,11 +37,26 @@ export class SubmitQuizDto {
   startedAt?: string;
 
   @IsOptional()
+  @IsDateString()
+  started_at?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   timeTakenSeconds?: number;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  time_taken_seconds?: number;
+
+  @IsOptional()
+  @IsBoolean()
   isDisqualified?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  is_disqualified?: boolean;
 }
