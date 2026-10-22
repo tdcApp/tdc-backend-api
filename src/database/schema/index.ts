@@ -299,6 +299,16 @@ export const quizSubmissions = pgTable(
 
     timeTakenSeconds: integer('time_taken_seconds'),
 
+    status: varchar('status', {
+      length: 20,
+    })
+      .default('COMPLETED')
+      .notNull(),
+
+    warningCount: integer('warning_count')
+      .default(0)
+      .notNull(),
+
     submittedAt: timestamp('submitted_at', {
       withTimezone: true,
     })

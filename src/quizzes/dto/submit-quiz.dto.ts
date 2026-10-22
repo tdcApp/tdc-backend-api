@@ -42,4 +42,7 @@ export class SubmitQuizDto {
   @IsInt()
   @Min(0)
   timeTakenSeconds?: number;
+
+  @IsOptional()
+  isDisqualified?: boolean;
 }

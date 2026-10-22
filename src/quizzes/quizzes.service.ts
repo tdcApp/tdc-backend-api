@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -123,7 +124,15 @@ export class QuizzesService {
         startTime: quizzes.startTime,
         enteringWindow: quizzes.enteringWindow,
         totalTime: quizzes.totalTime,
-        isSubmitted: sql<boolean>`CASE WHEN ${quizSubmissions.submittedAt} IS NOT NULL THEN true ELSE false END`,
+        isSubmitted: sql<boolean>`CASE 
+          WHEN ${quizSubmissions.status} = 'COMPLETED' OR ${quizSubmissions.status} = 'DISQUALIFIED' THEN true 
+          WHEN ${quizSubmissions.status} = 'IN_PROGRESS' AND (${quizSubmissions.warningCount} >= 3 OR (${quizSubmissions.startedAt} + (${quizzes.totalTime} || ' minutes')::interval) < NOW()) THEN true
+          ELSE false 
+        END`,
+        hasActiveAttempt: sql<boolean>`CASE 
+          WHEN ${quizSubmissions.status} = 'IN_PROGRESS' AND (${quizSubmissions.warningCount} < 3 AND (${quizSubmissions.startedAt} + (${quizzes.totalTime} || ' minutes')::interval) >= NOW()) THEN true 
+          ELSE false 
+        END`,
         createdByName: sql<string>`CASE WHEN ${users.role} = 'ADMIN' THEN 'ADMIN' WHEN ${users.name} IS NOT NULL THEN ${users.name} ELSE 'Teacher' END`,
         creatorRole: users.role,
         questionCount: sql<number>`(SELECT COUNT(*)::int FROM ${quizQuestions} WHERE ${quizQuestions.quizId} = ${quizzes.id})`,
@@ -200,9 +209,21 @@ export class QuizzesService {
     }
 
     let isSubmitted = false;
+    let activeAttempt: {
+      startedAt: string;
+      warningCount: number;
+      remainingSeconds: number;
+      isDisqualified: boolean;
+    } | null = null;
+
     if (isStudent) {
       const [existingSubmission] = await this.databaseService.db
-        .select({ submittedAt: quizSubmissions.submittedAt })
+        .select({
+          status: quizSubmissions.status,
+          startedAt: quizSubmissions.startedAt,
+          warningCount: quizSubmissions.warningCount,
+          submittedAt: quizSubmissions.submittedAt,
+        })
         .from(quizSubmissions)
         .where(
           and(
@@ -213,13 +234,41 @@ export class QuizzesService {
         .limit(1);
 
       if (existingSubmission) {
-        isSubmitted = true;
+        if (existingSubmission.status === 'COMPLETED' || existingSubmission.status === 'DISQUALIFIED') {
+          isSubmitted = true;
+        } else if (existingSubmission.status === 'IN_PROGRESS') {
+          const now = Date.now();
+          const startedTime = existingSubmission.startedAt ? new Date(existingSubmission.startedAt).getTime() : now;
+          const totalSeconds = (quiz.totalTime || 30) * 60;
+          const elapsedSeconds = Math.floor((now - startedTime) / 1000);
+          const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
+
+          if (remainingSeconds <= 0 || (existingSubmission.warningCount ?? 0) >= 3) {
+            isSubmitted = true;
+            await this.databaseService.db
+              .update(quizSubmissions)
+              .set({
+                status: (existingSubmission.warningCount ?? 0) >= 3 ? 'DISQUALIFIED' : 'COMPLETED',
+                submittedAt: new Date(startedTime + totalSeconds * 1000),
+              })
+              .where(and(eq(quizSubmissions.quizId, quizId), eq(quizSubmissions.studentUid, firebaseUid)));
+          } else {
+            isSubmitted = false;
+            activeAttempt = {
+              startedAt: existingSubmission.startedAt ? new Date(existingSubmission.startedAt).toISOString() : new Date().toISOString(),
+              warningCount: existingSubmission.warningCount ?? 0,
+              remainingSeconds,
+              isDisqualified: false,
+            };
+          }
+        }
       }
     }
 
     return {
       ...quiz,
       isSubmitted,
+      activeAttempt,
       questions: questions.map((q) => ({
         id: q.id,
         question: q.question,
@@ -301,6 +350,137 @@ export class QuizzesService {
   }
 
   /**
+   * Starts or resumes a quiz attempt for a student.
+   * If already started: applies Strike +1, calculates remaining time, resumes or disqualifies on Strike 3.
+   * If fresh: creates IN_PROGRESS record in database.
+   */
+  async startQuiz(quizId: string, firebaseUid: string) {
+    const [quiz] = await this.databaseService.db
+      .select({ id: quizzes.id, totalTime: quizzes.totalTime })
+      .from(quizzes)
+      .where(eq(quizzes.id, quizId))
+      .limit(1);
+
+    if (!quiz) {
+      throw new NotFoundException('Quiz not found');
+    }
+
+    const totalSeconds = (quiz.totalTime || 30) * 60;
+
+    const [existing] = await this.databaseService.db
+      .select()
+      .from(quizSubmissions)
+      .where(and(eq(quizSubmissions.quizId, quizId), eq(quizSubmissions.studentUid, firebaseUid)))
+      .limit(1);
+
+    if (existing) {
+      if (existing.status === 'COMPLETED' || existing.status === 'DISQUALIFIED') {
+        throw new ConflictException('You have already submitted this quiz');
+      }
+
+      // Resume attempt in progress: Apply Strike +1 for having left!
+      const now = Date.now();
+      const startedTime = existing.startedAt ? new Date(existing.startedAt).getTime() : now;
+      const elapsedSeconds = Math.floor((now - startedTime) / 1000);
+      const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
+
+      const newWarningCount = (existing.warningCount || 0) + 1;
+
+      if (remainingSeconds <= 0 || newWarningCount >= 3) {
+        const finalStatus = newWarningCount >= 3 ? 'DISQUALIFIED' : 'COMPLETED';
+        await this.databaseService.db
+          .update(quizSubmissions)
+          .set({ status: finalStatus, warningCount: newWarningCount, submittedAt: new Date() })
+          .where(and(eq(quizSubmissions.quizId, quizId), eq(quizSubmissions.studentUid, firebaseUid)));
+
+        return {
+          status: finalStatus,
+          isDisqualified: newWarningCount >= 3,
+          isExpired: remainingSeconds <= 0,
+          warningCount: newWarningCount,
+          remainingSeconds: 0,
+          isResume: true,
+        };
+      }
+
+      await this.databaseService.db
+        .update(quizSubmissions)
+        .set({ warningCount: newWarningCount })
+        .where(and(eq(quizSubmissions.quizId, quizId), eq(quizSubmissions.studentUid, firebaseUid)));
+
+      return {
+        status: 'IN_PROGRESS',
+        isResume: true,
+        startedAt: existing.startedAt ? new Date(existing.startedAt).toISOString() : new Date().toISOString(),
+        warningCount: newWarningCount,
+        remainingSeconds,
+        isDisqualified: false,
+        isExpired: false,
+      };
+    }
+
+    // Brand new attempt: insert IN_PROGRESS record
+    const [questionsCount] = await this.databaseService.db
+      .select({ count: count() })
+      .from(quizQuestions)
+      .where(eq(quizQuestions.quizId, quizId));
+
+    const startedAt = new Date();
+    const [newSub] = await this.databaseService.db
+      .insert(quizSubmissions)
+      .values({
+        quizId,
+        studentUid: firebaseUid,
+        score: 0,
+        totalQuestions: Number(questionsCount?.count || 0),
+        clientSubmissionId: randomUUID(),
+        startedAt,
+        status: 'IN_PROGRESS',
+        warningCount: 0,
+      })
+      .returning();
+
+    return {
+      status: 'IN_PROGRESS',
+      isResume: false,
+      startedAt: startedAt.toISOString(),
+      warningCount: 0,
+      remainingSeconds: totalSeconds,
+      isDisqualified: false,
+      isExpired: false,
+    };
+  }
+
+  async recordStrike(quizId: string, firebaseUid: string) {
+    const [existing] = await this.databaseService.db
+      .select()
+      .from(quizSubmissions)
+      .where(and(eq(quizSubmissions.quizId, quizId), eq(quizSubmissions.studentUid, firebaseUid)))
+      .limit(1);
+
+    if (!existing || existing.status !== 'IN_PROGRESS') {
+      return { warningCount: existing?.warningCount ?? 0, isDisqualified: existing?.status === 'DISQUALIFIED' };
+    }
+
+    const newWarningCount = (existing.warningCount || 0) + 1;
+    const isDisqualified = newWarningCount >= 3;
+
+    await this.databaseService.db
+      .update(quizSubmissions)
+      .set({
+        warningCount: newWarningCount,
+        status: isDisqualified ? 'DISQUALIFIED' : 'IN_PROGRESS',
+        ...(isDisqualified ? { submittedAt: new Date(), score: 0 } : {}),
+      })
+      .where(and(eq(quizSubmissions.quizId, quizId), eq(quizSubmissions.studentUid, firebaseUid)));
+
+    return {
+      warningCount: newWarningCount,
+      isDisqualified,
+    };
+  }
+
+  /**
    * Submits a quiz for a student. Score is calculated server-side.
    * Idempotent: if clientSubmissionId already exists, return the existing record.
    */
@@ -312,18 +492,18 @@ export class QuizzesService {
       .where(eq(quizSubmissions.clientSubmissionId, dto.clientSubmissionId))
       .limit(1);
 
-    if (existingByClientId) {
+    if (existingByClientId && (existingByClientId.status === 'COMPLETED' || existingByClientId.status === 'DISQUALIFIED')) {
       return existingByClientId;
     }
 
-    // Check for existing submission by (quizId, studentUid) — no retakes
+    // Check for existing submission by (quizId, studentUid)
     const [existingSubmission] = await this.databaseService.db
       .select()
       .from(quizSubmissions)
       .where(and(eq(quizSubmissions.quizId, quizId), eq(quizSubmissions.studentUid, firebaseUid)))
       .limit(1);
 
-    if (existingSubmission) {
+    if (existingSubmission && (existingSubmission.status === 'COMPLETED' || existingSubmission.status === 'DISQUALIFIED')) {
       throw new ConflictException('You have already submitted this quiz');
     }
 
@@ -380,26 +560,47 @@ export class QuizzesService {
     const startedAt = dto.startedAt ? new Date(dto.startedAt) : null;
     const submittedAt = new Date();
     let timeTakenSeconds = dto.timeTakenSeconds;
-    if (timeTakenSeconds === undefined && startedAt) {
-      timeTakenSeconds = Math.max(0, Math.round((submittedAt.getTime() - startedAt.getTime()) / 1000));
+    const effectiveStartedAt = existingSubmission?.startedAt || startedAt;
+    if (timeTakenSeconds === undefined && effectiveStartedAt) {
+      timeTakenSeconds = Math.max(0, Math.round((submittedAt.getTime() - new Date(effectiveStartedAt).getTime()) / 1000));
     }
 
-    try {
-      const [submission] = await this.databaseService.db
-        .insert(quizSubmissions)
-        .values({
-          quizId,
-          studentUid: firebaseUid,
-          score,
-          totalQuestions: questions.length,
-          clientSubmissionId: dto.clientSubmissionId,
-          startedAt,
-          submittedAt,
-          timeTakenSeconds: timeTakenSeconds ?? null,
-        })
-        .returning();
+    const finalStatus = dto.isDisqualified ? 'DISQUALIFIED' : 'COMPLETED';
 
-      return submission;
+    try {
+      if (existingSubmission) {
+        const [submission] = await this.databaseService.db
+          .update(quizSubmissions)
+          .set({
+            score: dto.isDisqualified ? 0 : score,
+            totalQuestions: questions.length,
+            status: finalStatus,
+            submittedAt,
+            timeTakenSeconds: timeTakenSeconds ?? null,
+          })
+          .where(and(eq(quizSubmissions.quizId, quizId), eq(quizSubmissions.studentUid, firebaseUid)))
+          .returning();
+
+        return submission;
+      } else {
+        const [submission] = await this.databaseService.db
+          .insert(quizSubmissions)
+          .values({
+            quizId,
+            studentUid: firebaseUid,
+            score: dto.isDisqualified ? 0 : score,
+            totalQuestions: questions.length,
+            clientSubmissionId: dto.clientSubmissionId,
+            startedAt,
+            submittedAt,
+            timeTakenSeconds: timeTakenSeconds ?? null,
+            status: finalStatus,
+            warningCount: 0,
+          })
+          .returning();
+
+        return submission;
+      }
     } catch (error) {
       if (error instanceof PostgresError && error.code === '23505') {
         throw new ConflictException('You have already submitted this quiz');
@@ -427,7 +628,12 @@ export class QuizzesService {
       const [countResult] = await this.databaseService.db
         .select({ count: count() })
         .from(quizSubmissions)
-        .where(eq(quizSubmissions.quizId, quizId));
+        .where(
+          and(
+            eq(quizSubmissions.quizId, quizId),
+            or(eq(quizSubmissions.status, 'COMPLETED'), eq(quizSubmissions.status, 'DISQUALIFIED')),
+          ),
+        );
 
       const total = Number(countResult?.count || 0);
 
@@ -441,6 +647,7 @@ export class QuizzesService {
           startedAt: quizSubmissions.startedAt,
           submittedAt: quizSubmissions.submittedAt,
           timeTakenSeconds: quizSubmissions.timeTakenSeconds,
+          status: quizSubmissions.status,
           studentName: users.name,
           studentEmail: users.email,
           studentEnrollment: users.enrollmentNumber,
@@ -448,7 +655,12 @@ export class QuizzesService {
         })
         .from(quizSubmissions)
         .leftJoin(users, eq(quizSubmissions.studentUid, users.firebaseUid))
-        .where(eq(quizSubmissions.quizId, quizId))
+        .where(
+          and(
+            eq(quizSubmissions.quizId, quizId),
+            or(eq(quizSubmissions.status, 'COMPLETED'), eq(quizSubmissions.status, 'DISQUALIFIED')),
+          ),
+        )
         .orderBy(
           sql`${quizSubmissions.score} DESC`,
           sql`${quizSubmissions.submittedAt} ASC`,
@@ -476,6 +688,7 @@ export class QuizzesService {
         startedAt: quizSubmissions.startedAt,
         submittedAt: quizSubmissions.submittedAt,
         timeTakenSeconds: quizSubmissions.timeTakenSeconds,
+        status: quizSubmissions.status,
         studentName: users.name,
         studentEmail: users.email,
         studentEnrollment: users.enrollmentNumber,
@@ -483,7 +696,12 @@ export class QuizzesService {
       })
       .from(quizSubmissions)
       .leftJoin(users, eq(quizSubmissions.studentUid, users.firebaseUid))
-      .where(eq(quizSubmissions.quizId, quizId))
+      .where(
+        and(
+          eq(quizSubmissions.quizId, quizId),
+          or(eq(quizSubmissions.status, 'COMPLETED'), eq(quizSubmissions.status, 'DISQUALIFIED')),
+        ),
+      )
       .orderBy(
         sql`${quizSubmissions.score} DESC`,
         sql`${quizSubmissions.submittedAt} ASC`,

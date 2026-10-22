@@ -38,9 +38,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS total_time integer DEFAULT 30;
         ALTER TABLE quiz_submissions ADD COLUMN IF NOT EXISTS started_at timestamptz;
         ALTER TABLE quiz_submissions ADD COLUMN IF NOT EXISTS time_taken_seconds integer;
+        ALTER TABLE quiz_submissions ADD COLUMN IF NOT EXISTS status varchar(20) DEFAULT 'COMPLETED';
+        ALTER TABLE quiz_submissions ADD COLUMN IF NOT EXISTS warning_count integer DEFAULT 0;
         ALTER TABLE assignments ADD COLUMN IF NOT EXISTS created_by varchar(128);
       `);
-      console.log('Successfully ensured user_devices, users columns, quizzes timing, and assignments.created_by exist');
+      console.log('Successfully ensured user_devices, users columns, quizzes timing, quiz attempt status, and assignments.created_by exist');
     } catch (e) {
       console.error('Failed to ensure schema updates:', e);
     }

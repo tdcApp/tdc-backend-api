@@ -47,6 +47,18 @@ export class QuizzesController {
     return this.quizzesService.create(request.user.uid, dto);
   }
 
+  /** POST /quizzes/:id/start — Student: start or resume a quiz attempt */
+  @Post(':id/start')
+  start(@Param('id', ParseUUIDPipe) id: string, @Req() request: AuthenticatedRequest) {
+    return this.quizzesService.startQuiz(id, request.user.uid);
+  }
+
+  /** POST /quizzes/:id/strike — Student: record integrity strike */
+  @Post(':id/strike')
+  recordStrike(@Param('id', ParseUUIDPipe) id: string, @Req() request: AuthenticatedRequest) {
+    return this.quizzesService.recordStrike(id, request.user.uid);
+  }
+
   /** POST /quizzes/:id/submit — Student: submit quiz answers (Rate limited: 3 / min) */
   @Post(':id/submit')
   @UseGuards(RateLimitGuard)
