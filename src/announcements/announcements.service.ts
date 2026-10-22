@@ -171,7 +171,7 @@ export class AnnouncementsService {
       dto.content.length > 100 ? `${dto.content.substring(0, 97)}...` : dto.content,
       {
         type: normalizedTargetScreen,
-        id: dto.targetId || announcement.id,
+        id: dto.targetId || (normalizedTargetScreen === 'ANNOUNCEMENT' ? announcement.id : ''),
         tag: normalizedTag,
         announcementId: announcement.id,
       },
