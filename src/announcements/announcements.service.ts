@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { and, eq, inArray, or } from 'drizzle-orm';
 import { DatabaseService } from '../database/database.service';
+import { RedisService } from '../redis/redis.service';
 import { announcements, classes, users } from '../database/schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { CreateAnnouncementDto } from './dto/create-announcement.dto';
@@ -16,7 +17,36 @@ export class AnnouncementsService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly notificationsService: NotificationsService,
+    private readonly redisService: RedisService,
   ) {}
+
+  private async getUserProfile(firebaseUid: string) {
+    const userCacheKey = `user:profile:${firebaseUid}`;
+    let user = await this.redisService.get<{
+      role: string;
+      languageClassId: string | null;
+      technologyClassId: string | null;
+    }>(userCacheKey);
+
+    if (!user) {
+      const [dbUser] = await this.databaseService.db
+        .select({
+          role: users.role,
+          languageClassId: users.languageClassId,
+          technologyClassId: users.technologyClassId,
+        })
+        .from(users)
+        .where(eq(users.firebaseUid, firebaseUid))
+        .limit(1);
+
+      if (dbUser) {
+        user = dbUser;
+        await this.redisService.set(userCacheKey, user, 300);
+      }
+    }
+
+    return user ?? null;
+  }
 
   /**
    * Returns announcements visible to the requesting user.
@@ -29,15 +59,7 @@ export class AnnouncementsService {
    *     CLASS     → announcement.class_id is one of their class ids
    */
   async findForUser(firebaseUid: string) {
-    const [user] = await this.databaseService.db
-      .select({
-        role: users.role,
-        languageClassId: users.languageClassId,
-        technologyClassId: users.technologyClassId,
-      })
-      .from(users)
-      .where(eq(users.firebaseUid, firebaseUid))
-      .limit(1);
+    const user = await this.getUserProfile(firebaseUid);
 
     if (!user) {
       throw new ForbiddenException('TDC user profile not found');

@@ -8,6 +8,7 @@ import {
 import { and, count, eq, inArray, sql } from 'drizzle-orm';
 import { PostgresError } from 'postgres';
 import { DatabaseService } from '../database/database.service';
+import { RedisService } from '../redis/redis.service';
 import { assignments, assignmentSubmissions, classes, users } from '../database/schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { CreateAssignmentDto } from './dto/create-assignment.dto';
@@ -18,23 +19,44 @@ export class AssignmentsService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly notificationsService: NotificationsService,
+    private readonly redisService: RedisService,
   ) {}
+
+  private async getUserProfile(firebaseUid: string) {
+    const userCacheKey = `user:profile:${firebaseUid}`;
+    let user = await this.redisService.get<{
+      role: string;
+      languageClassId: string | null;
+      technologyClassId: string | null;
+    }>(userCacheKey);
+
+    if (!user) {
+      const [dbUser] = await this.databaseService.db
+        .select({
+          role: users.role,
+          languageClassId: users.languageClassId,
+          technologyClassId: users.technologyClassId,
+        })
+        .from(users)
+        .where(eq(users.firebaseUid, firebaseUid))
+        .limit(1);
+
+      if (dbUser) {
+        user = dbUser;
+        await this.redisService.set(userCacheKey, user, 300);
+      }
+    }
+
+    return user ?? null;
+  }
 
   /**
    * Returns assignments relevant to the requesting user.
-   * - TEACHER/ADMIN → assignments for classes they mentor
-   * - STUDENT       → assignments for their enrolled classes
+   * - TEACHER/ADMIN → assignments for classes they mentor (with submissionCount)
+   * - STUDENT       → assignments for their enrolled classes (with isSubmitted, submissionUrl, submittedAt)
    */
   async findForUser(firebaseUid: string) {
-    const [user] = await this.databaseService.db
-      .select({
-        role: users.role,
-        languageClassId: users.languageClassId,
-        technologyClassId: users.technologyClassId,
-      })
-      .from(users)
-      .where(eq(users.firebaseUid, firebaseUid))
-      .limit(1);
+    const user = await this.getUserProfile(firebaseUid);
 
     if (!user) {
       throw new ForbiddenException('TDC user profile not found');
@@ -55,7 +77,10 @@ export class AssignmentsService {
 
     if (user.role === 'ADMIN' || user.role === 'TEACHER') {
       return this.databaseService.db
-        .select(selectFields)
+        .select({
+          ...selectFields,
+          submissionCount: sql<number>`(SELECT COUNT(*)::int FROM ${assignmentSubmissions} WHERE ${assignmentSubmissions.assignmentId} = ${assignments.id})`,
+        })
         .from(assignments)
         .leftJoin(classes, eq(assignments.classId, classes.id))
         .leftJoin(
@@ -75,12 +100,24 @@ export class AssignmentsService {
     }
 
     return this.databaseService.db
-      .select(selectFields)
+      .select({
+        ...selectFields,
+        isSubmitted: sql<boolean>`CASE WHEN ${assignmentSubmissions.submittedAt} IS NOT NULL THEN true ELSE false END`,
+        submissionUrl: assignmentSubmissions.submissionUrl,
+        submittedAt: assignmentSubmissions.submittedAt,
+      })
       .from(assignments)
       .leftJoin(classes, eq(assignments.classId, classes.id))
       .leftJoin(
         users,
         eq(users.firebaseUid, sql`COALESCE(${assignments.createdBy}, ${classes.mentorUid})`),
+      )
+      .leftJoin(
+        assignmentSubmissions,
+        and(
+          eq(assignments.id, assignmentSubmissions.assignmentId),
+          eq(assignmentSubmissions.menteeUid, firebaseUid),
+        ),
       )
       .where(inArray(assignments.classId, classIds))
       .orderBy(assignments.createdAt);

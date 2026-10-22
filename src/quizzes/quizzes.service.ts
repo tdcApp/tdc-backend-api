@@ -23,28 +23,44 @@ export class QuizzesService {
     private readonly redisService: RedisService,
   ) {}
 
+  private async getUserProfile(firebaseUid: string) {
+    const userCacheKey = `user:profile:${firebaseUid}`;
+    let user = await this.redisService.get<{
+      role: string;
+      languageClassId: string | null;
+      technologyClassId: string | null;
+      year: string | null;
+    }>(userCacheKey);
+
+    if (!user) {
+      const [dbUser] = await this.databaseService.db
+        .select({
+          role: users.role,
+          languageClassId: users.languageClassId,
+          technologyClassId: users.technologyClassId,
+          year: users.year,
+        })
+        .from(users)
+        .where(eq(users.firebaseUid, firebaseUid))
+        .limit(1);
+
+      if (dbUser) {
+        user = dbUser;
+        await this.redisService.set(userCacheKey, user, 300);
+      }
+    }
+
+    return user ?? null;
+  }
+
   /**
    * Returns quizzes visible to the requesting user based on their role and class enrolment.
-
    *
-   * - TEACHER/ADMIN  → sees all quizzes they created
-   * - STUDENT        → sees quizzes where audience matches their class membership:
-   *     ALL       → always visible
-   *     LANGUAGE  → student must have a language_class_id
-   *     TECHNOLOGY→ student must have a technology_class_id
-   *     CLASS     → quiz.class_id must equal one of their class ids
+   * - TEACHER/ADMIN  → sees all quizzes with questionCount, submissionCount, and avgScore
+   * - STUDENT        → sees quizzes where audience matches their class membership
    */
   async findForUser(firebaseUid: string) {
-    const [user] = await this.databaseService.db
-      .select({
-        role: users.role,
-        languageClassId: users.languageClassId,
-        technologyClassId: users.technologyClassId,
-        year: users.year,
-      })
-      .from(users)
-      .where(eq(users.firebaseUid, firebaseUid))
-      .limit(1);
+    const user = await this.getUserProfile(firebaseUid);
 
     if (!user) {
       throw new ForbiddenException('TDC user profile not found');
@@ -64,6 +80,9 @@ export class QuizzesService {
           isSubmitted: sql<boolean>`false`,
           createdByName: sql<string>`CASE WHEN ${users.role} = 'ADMIN' THEN 'ADMIN' WHEN ${users.name} IS NOT NULL THEN ${users.name} ELSE 'Teacher' END`,
           creatorRole: users.role,
+          questionCount: sql<number>`(SELECT COUNT(*)::int FROM ${quizQuestions} WHERE ${quizQuestions.quizId} = ${quizzes.id})`,
+          submissionCount: sql<number>`(SELECT COUNT(*)::int FROM ${quizSubmissions} WHERE ${quizSubmissions.quizId} = ${quizzes.id})`,
+          avgScore: sql<number>`COALESCE((SELECT ROUND(AVG(${quizSubmissions.score})::numeric, 1)::float FROM ${quizSubmissions} WHERE ${quizSubmissions.quizId} = ${quizzes.id}), 0)`,
         })
         .from(quizzes)
         .leftJoin(users, eq(users.firebaseUid, quizzes.createdBy))
@@ -112,6 +131,7 @@ export class QuizzesService {
         isSubmitted: sql<boolean>`CASE WHEN ${quizSubmissions.submittedAt} IS NOT NULL THEN true ELSE false END`,
         createdByName: sql<string>`CASE WHEN ${users.role} = 'ADMIN' THEN 'ADMIN' WHEN ${users.name} IS NOT NULL THEN ${users.name} ELSE 'Teacher' END`,
         creatorRole: users.role,
+        questionCount: sql<number>`(SELECT COUNT(*)::int FROM ${quizQuestions} WHERE ${quizQuestions.quizId} = ${quizzes.id})`,
       })
       .from(quizzes)
       .leftJoin(users, eq(users.firebaseUid, quizzes.createdBy))
@@ -131,11 +151,7 @@ export class QuizzesService {
    * For STUDENT: correct_option is stripped out.
    */
   async findOne(quizId: string, firebaseUid: string) {
-    const [user] = await this.databaseService.db
-      .select({ role: users.role, year: users.year })
-      .from(users)
-      .where(eq(users.firebaseUid, firebaseUid))
-      .limit(1);
+    const user = await this.getUserProfile(firebaseUid);
 
     if (!user) {
       throw new ForbiddenException('TDC user profile not found');
@@ -311,11 +327,7 @@ export class QuizzesService {
     }
 
     // Verify quiz exists and check academic year eligibility
-    const [user] = await this.databaseService.db
-      .select({ role: users.role, year: users.year })
-      .from(users)
-      .where(eq(users.firebaseUid, firebaseUid))
-      .limit(1);
+    const user = await this.getUserProfile(firebaseUid);
 
     const [quiz] = await this.databaseService.db
       .select({ id: quizzes.id, targetYears: quizzes.targetYears })

@@ -7,20 +7,34 @@ import {
 import { and, eq, or } from 'drizzle-orm';
 import { PostgresError } from 'postgres';
 import { DatabaseService } from '../database/database.service';
+import { RedisService } from '../redis/redis.service';
 import { classes, users } from '../database/schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly redisService: RedisService,
+  ) {}
 
   async findByFirebaseUid(firebaseUid: string) {
+    const cacheKey = `user:profile:${firebaseUid}`;
+    const cached = await this.redisService.get<any>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const [user] = await this.databaseService.db
       .select()
       .from(users)
       .where(eq(users.firebaseUid, firebaseUid))
       .limit(1);
+
+    if (user) {
+      await this.redisService.set(cacheKey, user, 300);
+    }
 
     return user ?? null;
   }
@@ -85,6 +99,7 @@ export class UsersService {
         })
         .returning();
 
+      await this.redisService.del(`user:profile:${firebaseUid}`);
       return user;
     } catch (error) {
       if (error instanceof PostgresError && error.code === '23505') {
@@ -121,6 +136,7 @@ export class UsersService {
       .where(eq(users.firebaseUid, firebaseUid))
       .returning();
 
+    await this.redisService.del(`user:profile:${firebaseUid}`);
     return updated;
   }
 
