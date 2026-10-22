@@ -16,4 +16,16 @@ export class SendTestNotificationDto {
   @IsOptional()
   @IsString()
   classId?: string;
+
+  @IsOptional()
+  @IsString()
+  type?: string;
+
+  @IsOptional()
+  @IsString()
+  tag?: string;
+
+  @IsOptional()
+  @IsString()
+  id?: string;
 }

@@ -68,7 +68,15 @@ export class NotifyController {
   @Post('test')
   async sendTestNotification(@Body() dto: SendTestNotificationDto) {
     const title = dto?.title || '🔔 TDC Notification Test';
-    const message = dto?.body || 'Hello! Test notification for C++ and Android Developer track.';
-    return this.notificationsService.sendBroadcastTest(title, message, dto?.target, dto?.classId);
+    const message = dto?.body || 'Hello! Test notification for TDC App.';
+    return this.notificationsService.sendBroadcastTest(
+      title,
+      message,
+      dto?.target,
+      dto?.classId,
+      dto?.type,
+      dto?.tag,
+      dto?.id,
+    );
   }
 }

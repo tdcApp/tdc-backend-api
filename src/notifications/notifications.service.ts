@@ -215,6 +215,9 @@ export class NotificationsService {
     body: string,
     target = 'ALL',
     classId?: string,
+    type = 'ANNOUNCEMENT',
+    tag = 'GENERAL',
+    targetId = '',
   ): Promise<{ sent: number; failed: number; totalTokens: number; message?: string }> {
     try {
       let tokens: string[] = [];
@@ -260,7 +263,9 @@ export class NotificationsService {
         data: {
           title: String(title),
           body: String(body),
-          type: 'ANNOUNCEMENT',
+          type: String(type || 'ANNOUNCEMENT'),
+          tag: String(tag || 'GENERAL'),
+          id: String(targetId || ''),
         },
         android: {
           priority: 'high',
