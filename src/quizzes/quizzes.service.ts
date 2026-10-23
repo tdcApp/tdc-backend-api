@@ -193,6 +193,16 @@ export class QuizzesService {
       }
     }
 
+    if (isStudent && quiz.startTime) {
+      const now = Date.now();
+      const startMs = new Date(quiz.startTime).getTime();
+      if (now < startMs) {
+        throw new ForbiddenException(
+          `This quiz is scheduled to start at ${new Date(quiz.startTime).toISOString()}. Questions cannot be accessed before the scheduled start time.`,
+        );
+      }
+    }
+
     const questions = await this.databaseService.db
       .select()
       .from(quizQuestions)
@@ -256,6 +266,15 @@ export class QuizzesService {
               isDisqualified: false,
             };
           }
+        }
+      } else if (quiz.startTime) {
+        const now = Date.now();
+        const startMs = new Date(quiz.startTime).getTime();
+        const windowMs = (quiz.enteringWindow ?? 15) * 60 * 1000;
+        if (now > startMs + windowMs) {
+          throw new ForbiddenException(
+            'The entry window for this quiz has closed. You can no longer join this quiz.',
+          );
         }
       }
     }
@@ -351,13 +370,28 @@ export class QuizzesService {
    */
   async startQuiz(quizId: string, firebaseUid: string) {
     const [quiz] = await this.databaseService.db
-      .select({ id: quizzes.id, totalTime: quizzes.totalTime })
+      .select({
+        id: quizzes.id,
+        totalTime: quizzes.totalTime,
+        startTime: quizzes.startTime,
+        enteringWindow: quizzes.enteringWindow,
+      })
       .from(quizzes)
       .where(eq(quizzes.id, quizId))
       .limit(1);
 
     if (!quiz) {
       throw new NotFoundException('Quiz not found');
+    }
+
+    if (quiz.startTime) {
+      const now = Date.now();
+      const startMs = new Date(quiz.startTime).getTime();
+      if (now < startMs) {
+        throw new ForbiddenException(
+          `This quiz is scheduled to start at ${new Date(quiz.startTime).toISOString()}. You cannot start it yet.`,
+        );
+      }
     }
 
     const totalSeconds = (quiz.totalTime || 30) * 60;
@@ -367,6 +401,17 @@ export class QuizzesService {
       .from(quizSubmissions)
       .where(and(eq(quizSubmissions.quizId, quizId), eq(quizSubmissions.studentUid, firebaseUid)))
       .limit(1);
+
+    if (quiz.startTime && !existing) {
+      const now = Date.now();
+      const startMs = new Date(quiz.startTime).getTime();
+      const windowMs = (quiz.enteringWindow ?? 15) * 60 * 1000;
+      if (now > startMs + windowMs) {
+        throw new ForbiddenException(
+          'The entry window for this quiz has closed. You can no longer start this quiz.',
+        );
+      }
+    }
 
     if (existing) {
       if (existing.status === 'COMPLETED' || existing.status === 'DISQUALIFIED') {
