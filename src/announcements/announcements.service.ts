@@ -167,6 +167,7 @@ export class AnnouncementsService {
     void this.notificationsService.sendToAudience(
       dto.audience,
       dto.classId,
+      null,
       `${tagEmoji} ${dto.title}`,
       dto.content.length > 100 ? `${dto.content.substring(0, 97)}...` : dto.content,
       {

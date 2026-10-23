@@ -70,6 +70,7 @@ export class QuizzesService {
           startTime: quizzes.startTime,
           enteringWindow: quizzes.enteringWindow,
           totalTime: quizzes.totalTime,
+          resultVisibility: quizzes.resultVisibility,
           isSubmitted: sql<boolean>`false`,
           createdByName: sql<string>`CASE WHEN ${users.role} = 'ADMIN' THEN 'ADMIN' WHEN ${users.name} IS NOT NULL THEN ${users.name} ELSE 'Teacher' END`,
           creatorRole: users.role,
@@ -124,6 +125,7 @@ export class QuizzesService {
         startTime: quizzes.startTime,
         enteringWindow: quizzes.enteringWindow,
         totalTime: quizzes.totalTime,
+        resultVisibility: quizzes.resultVisibility,
         isSubmitted: sql<boolean>`CASE 
           WHEN ${quizSubmissions.status} = 'COMPLETED' OR ${quizSubmissions.status} = 'DISQUALIFIED' THEN true 
           WHEN ${quizSubmissions.status} = 'IN_PROGRESS' AND (${quizSubmissions.warningCount} >= 3 OR (${quizSubmissions.startedAt} + (${quizzes.totalTime} || ' minutes')::interval) < NOW()) THEN true
@@ -174,6 +176,7 @@ export class QuizzesService {
         startTime: quizzes.startTime,
         enteringWindow: quizzes.enteringWindow,
         totalTime: quizzes.totalTime,
+        resultVisibility: quizzes.resultVisibility,
         createdByName: sql<string>`CASE WHEN ${users.role} = 'ADMIN' THEN 'ADMIN' WHEN ${users.name} IS NOT NULL THEN ${users.name} ELSE 'Teacher' END`,
         creatorRole: users.role,
       })
@@ -341,6 +344,7 @@ export class QuizzesService {
           startTime: dto.startTime ? new Date(dto.startTime) : null,
           enteringWindow: dto.enteringWindow ?? 15,
           totalTime: dto.totalTime ?? 30,
+          resultVisibility: dto.resultVisibility ?? 'PUBLIC',
         })
         .returning();
 
@@ -363,6 +367,7 @@ export class QuizzesService {
     void this.notificationsService.sendToAudience(
       dto.audience,
       dto.classId,
+      dto.targetYears,
       'New Quiz Available! 📝',
       `Quiz "${dto.title}" has been published.`,
       { type: 'QUIZ', id: result.id },
@@ -705,8 +710,8 @@ export class QuizzesService {
         )
         .orderBy(
           sql`${quizSubmissions.score} DESC`,
-          sql`${quizSubmissions.submittedAt} ASC`,
-          sql`${quizSubmissions.timeTakenSeconds} ASC NULLS LAST`
+          sql`${quizSubmissions.timeTakenSeconds} ASC NULLS LAST`,
+          sql`${quizSubmissions.submittedAt} ASC`
         )
         .limit(limitNum)
         .offset(offset);
@@ -746,8 +751,8 @@ export class QuizzesService {
       )
       .orderBy(
         sql`${quizSubmissions.score} DESC`,
-        sql`${quizSubmissions.submittedAt} ASC`,
-        sql`${quizSubmissions.timeTakenSeconds} ASC NULLS LAST`
+        sql`${quizSubmissions.timeTakenSeconds} ASC NULLS LAST`,
+        sql`${quizSubmissions.submittedAt} ASC`
       );
   }
 
@@ -764,9 +769,11 @@ export class QuizzesService {
         timeTakenSeconds: quizSubmissions.timeTakenSeconds,
         studentName: users.name,
         studentEmail: users.email,
+        resultVisibility: quizzes.resultVisibility,
       })
       .from(quizSubmissions)
       .leftJoin(users, eq(quizSubmissions.studentUid, users.firebaseUid))
+      .leftJoin(quizzes, eq(quizSubmissions.quizId, quizzes.id))
       .where(and(eq(quizSubmissions.quizId, quizId), eq(quizSubmissions.studentUid, firebaseUid)))
       .limit(1);
 
@@ -774,7 +781,12 @@ export class QuizzesService {
       throw new NotFoundException('Submission not found');
     }
 
-    return submission;
+    const isPrivate = submission.resultVisibility === 'PRIVATE';
+    return {
+      ...submission,
+      isPrivate,
+      score: isPrivate ? null : submission.score,
+    };
   }
 
   async deleteQuiz(quizId: string, firebaseUid: string) {

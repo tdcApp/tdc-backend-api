@@ -175,6 +175,12 @@ export const quizzes = pgTable(
 
     totalTime: integer('total_time').default(30).notNull(),
 
+    resultVisibility: varchar('result_visibility', {
+      length: 20,
+    })
+      .default('PUBLIC')
+      .notNull(),
+
     createdAt: timestamp('created_at', {
       withTimezone: true,
     })

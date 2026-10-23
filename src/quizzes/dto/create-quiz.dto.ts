@@ -74,6 +74,10 @@ export class CreateQuizDto {
   @Min(1)
   totalTime?: number;
 
+  @IsOptional()
+  @IsEnum(['PUBLIC', 'PRIVATE'])
+  resultVisibility?: 'PUBLIC' | 'PRIVATE';
+
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })

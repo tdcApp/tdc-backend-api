@@ -36,6 +36,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS start_time timestamptz;
         ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS entering_window integer DEFAULT 15;
         ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS total_time integer DEFAULT 30;
+        ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS result_visibility varchar(20) DEFAULT 'PUBLIC';
         ALTER TABLE quiz_submissions ADD COLUMN IF NOT EXISTS started_at timestamptz;
         ALTER TABLE quiz_submissions ADD COLUMN IF NOT EXISTS time_taken_seconds integer;
         ALTER TABLE quiz_submissions ADD COLUMN IF NOT EXISTS status varchar(20) DEFAULT 'COMPLETED';

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { and, eq, inArray, isNotNull, or } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, or, sql } from 'drizzle-orm';
 import { DatabaseService } from '../database/database.service';
 import { userDevices, users } from '../database/schema';
 import { FirebaseAdminService } from '../auth/firebase-admin.service';
@@ -135,17 +135,21 @@ export class NotificationsService {
     title: string,
     body: string,
     data: Record<string, string> = {},
+    targetYears?: string | null,
   ): Promise<void> {
     try {
+      const conditions: any[] = [
+        eq(users.role, 'STUDENT'),
+        or(eq(users.languageClassId, classId), eq(users.technologyClassId, classId)),
+      ];
+      if (targetYears && targetYears !== 'ALL' && targetYears.trim() !== '') {
+        conditions.push(sql`${users.year} IS NOT NULL AND position(${users.year} in ${targetYears}) > 0`);
+      }
+
       const enrolledUsers = await this.databaseService.db
         .select({ uid: users.firebaseUid })
         .from(users)
-        .where(
-          and(
-            eq(users.role, 'STUDENT'),
-            or(eq(users.languageClassId, classId), eq(users.technologyClassId, classId)),
-          ),
-        );
+        .where(and(...conditions));
 
       const uids = enrolledUsers.map((u) => u.uid);
       await this.sendToUsers(uids, title, body, data);
@@ -157,21 +161,31 @@ export class NotificationsService {
   async sendToAudience(
     audience: string,
     classId: string | null | undefined,
+    targetYears: string | null | undefined,
     title: string,
     body: string,
     data: Record<string, string> = {},
   ): Promise<void> {
     try {
       const aud = audience.toUpperCase();
+      const yearCondition = (targetYears && targetYears !== 'ALL' && targetYears.trim() !== '')
+        ? sql`${users.year} IS NOT NULL AND position(${users.year} in ${targetYears}) > 0`
+        : undefined;
+
       if (aud === 'CLASS' && classId) {
-        return this.sendToClass(classId, title, body, data);
+        return this.sendToClass(classId, title, body, data, targetYears);
+      }
+
+      const conditions: any[] = [eq(users.role, 'STUDENT')];
+      if (yearCondition) {
+        conditions.push(yearCondition);
       }
 
       if (aud === 'ALL') {
         const allStudents = await this.databaseService.db
           .select({ uid: users.firebaseUid })
           .from(users)
-          .where(eq(users.role, 'STUDENT'));
+          .where(and(...conditions));
         return this.sendToUsers(
           allStudents.map((u) => u.uid),
           title,
@@ -181,10 +195,11 @@ export class NotificationsService {
       }
 
       if (aud === 'LANGUAGE') {
+        conditions.push(isNotNull(users.languageClassId));
         const students = await this.databaseService.db
           .select({ uid: users.firebaseUid })
           .from(users)
-          .where(and(eq(users.role, 'STUDENT'), isNotNull(users.languageClassId)));
+          .where(and(...conditions));
         return this.sendToUsers(
           students.map((u) => u.uid),
           title,
@@ -194,10 +209,11 @@ export class NotificationsService {
       }
 
       if (aud === 'TECHNOLOGY') {
+        conditions.push(isNotNull(users.technologyClassId));
         const students = await this.databaseService.db
           .select({ uid: users.firebaseUid })
           .from(users)
-          .where(and(eq(users.role, 'STUDENT'), isNotNull(users.technologyClassId)));
+          .where(and(...conditions));
         return this.sendToUsers(
           students.map((u) => u.uid),
           title,
