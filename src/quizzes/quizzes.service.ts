@@ -197,9 +197,13 @@ export class QuizzesService {
       const now = Date.now();
       const startMs = new Date(quiz.startTime).getTime();
       if (now < startMs) {
-        throw new ForbiddenException(
-          `This quiz is scheduled to start at ${new Date(quiz.startTime).toISOString()}. Questions cannot be accessed before the scheduled start time.`,
-        );
+        return {
+          ...quiz,
+          questions: [],
+          isSubmitted: false,
+          activeAttempt: null,
+          isScheduled: true,
+        };
       }
     }
 
@@ -272,9 +276,13 @@ export class QuizzesService {
         const startMs = new Date(quiz.startTime).getTime();
         const windowMs = (quiz.enteringWindow ?? 15) * 60 * 1000;
         if (now > startMs + windowMs) {
-          throw new ForbiddenException(
-            'The entry window for this quiz has closed. You can no longer join this quiz.',
-          );
+          return {
+            ...quiz,
+            questions: [],
+            isSubmitted: false,
+            activeAttempt: null,
+            isEntryClosed: true,
+          };
         }
       }
     }
