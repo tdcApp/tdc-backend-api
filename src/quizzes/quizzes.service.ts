@@ -7,7 +7,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { and, count, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { PostgresError } from 'postgres';
 import { DatabaseService } from '../database/database.service';
 import { classes, quizQuestions, quizSubmissions, quizzes, users } from '../database/schema';
@@ -80,7 +80,7 @@ export class QuizzesService {
         })
         .from(quizzes)
         .leftJoin(users, eq(users.firebaseUid, quizzes.createdBy))
-        .orderBy(quizzes.createdAt);
+        .orderBy(desc(quizzes.createdAt));
     }
 
     // Build audience filter for students
@@ -149,7 +149,7 @@ export class QuizzesService {
         ),
       )
       .where(and(or(...audienceConditions), yearCondition))
-      .orderBy(quizzes.createdAt);
+      .orderBy(desc(quizzes.createdAt));
   }
 
   /**
@@ -564,7 +564,7 @@ export class QuizzesService {
     const user = await this.getUserProfile(firebaseUid);
 
     const [quiz] = await this.databaseService.db
-      .select({ id: quizzes.id, targetYears: quizzes.targetYears })
+      .select({ id: quizzes.id, targetYears: quizzes.targetYears, resultVisibility: quizzes.resultVisibility })
       .from(quizzes)
       .where(eq(quizzes.id, quizId))
       .limit(1);
@@ -615,6 +615,7 @@ export class QuizzesService {
     const finalStatus = isDisqualified ? 'DISQUALIFIED' : 'COMPLETED';
 
     try {
+      let savedSubmission;
       if (existingSubmission) {
         const [submission] = await this.databaseService.db
           .update(quizSubmissions)
@@ -628,7 +629,7 @@ export class QuizzesService {
           .where(and(eq(quizSubmissions.quizId, quizId), eq(quizSubmissions.studentUid, firebaseUid)))
           .returning();
 
-        return submission;
+        savedSubmission = submission;
       } else {
         const [submission] = await this.databaseService.db
           .insert(quizSubmissions)
@@ -646,8 +647,16 @@ export class QuizzesService {
           })
           .returning();
 
-        return submission;
+        savedSubmission = submission;
       }
+
+      const isPrivate = quiz.resultVisibility === 'PRIVATE';
+      return {
+        ...savedSubmission,
+        resultVisibility: quiz.resultVisibility,
+        isPrivate,
+        score: isPrivate ? null : savedSubmission.score,
+      };
     } catch (error) {
       if (error instanceof PostgresError && error.code === '23505') {
         throw new ConflictException('You have already submitted this quiz');
