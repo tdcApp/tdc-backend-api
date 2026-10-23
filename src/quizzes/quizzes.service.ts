@@ -344,7 +344,7 @@ export class QuizzesService {
           startTime: dto.startTime ? new Date(dto.startTime) : null,
           enteringWindow: dto.enteringWindow ?? 15,
           totalTime: dto.totalTime ?? 30,
-          resultVisibility: dto.resultVisibility ?? 'PUBLIC',
+          resultVisibility: dto.resultVisibility ?? dto.result_visibility ?? 'PUBLIC',
         })
         .returning();
 

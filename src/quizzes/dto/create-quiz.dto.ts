@@ -78,6 +78,10 @@ export class CreateQuizDto {
   @IsEnum(['PUBLIC', 'PRIVATE'])
   resultVisibility?: 'PUBLIC' | 'PRIVATE';
 
+  @IsOptional()
+  @IsEnum(['PUBLIC', 'PRIVATE'])
+  result_visibility?: 'PUBLIC' | 'PRIVATE';
+
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
