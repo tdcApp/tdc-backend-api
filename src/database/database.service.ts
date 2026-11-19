@@ -42,9 +42,25 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         ALTER TABLE quiz_submissions ADD COLUMN IF NOT EXISTS status varchar(20) DEFAULT 'COMPLETED';
         ALTER TABLE quiz_submissions ADD COLUMN IF NOT EXISTS warning_count integer DEFAULT 0;
         ALTER TABLE assignments ADD COLUMN IF NOT EXISTS created_by varchar(128);
+        ALTER TABLE announcements ADD COLUMN IF NOT EXISTS tag varchar(50) DEFAULT 'GENERAL';
+        ALTER TABLE announcements ADD COLUMN IF NOT EXISTS target_screen varchar(50) DEFAULT 'ANNOUNCEMENT';
+        ALTER TABLE announcements ADD COLUMN IF NOT EXISTS target_id varchar(128);
 
-        
-        WHERE title = 'TDC Coding Quest Season 3';
+        CREATE TABLE IF NOT EXISTS hero_banners (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          title varchar(255) NOT NULL DEFAULT 'TDC Hackathon & Events',
+          subtitle text DEFAULT 'Stay tuned for upcoming hackathons, workshops, and challenges',
+          tag varchar(50) NOT NULL DEFAULT 'UPCOMING',
+          badge_text varchar(50),
+          button_text varchar(100) NOT NULL DEFAULT 'Learn More',
+          action_url text,
+          action_type varchar(50) NOT NULL DEFAULT 'URL',
+          is_active boolean NOT NULL DEFAULT false,
+          updated_by varchar(128) REFERENCES users(firebase_uid) ON DELETE SET NULL,
+          created_at timestamptz DEFAULT NOW() NOT NULL,
+          updated_at timestamptz DEFAULT NOW() NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS hero_banners_is_active_idx ON hero_banners(is_active);
       `);
       console.log('Successfully ensured user_devices, hero_banners, users columns, quizzes timing, quiz attempt status, assignments.created_by, and announcements tags exist');
     } catch (e) {
