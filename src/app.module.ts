@@ -14,6 +14,7 @@ import { AssignmentsModule } from './assignments/assignments.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { RedisModule } from './redis/redis.module';
+import { HeroBannerModule } from './hero-banner/hero-banner.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { RedisModule } from './redis/redis.module';
     AssignmentsModule,
     AnnouncementsModule,
     NotificationsModule,
+    HeroBannerModule,
   ],
   controllers: [AppController],
   providers: [AppService],

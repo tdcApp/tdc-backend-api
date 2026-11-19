@@ -45,8 +45,28 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         ALTER TABLE announcements ADD COLUMN IF NOT EXISTS tag varchar(50) DEFAULT 'GENERAL';
         ALTER TABLE announcements ADD COLUMN IF NOT EXISTS target_screen varchar(50) DEFAULT 'ANNOUNCEMENT';
         ALTER TABLE announcements ADD COLUMN IF NOT EXISTS target_id varchar(128);
+
+        CREATE TABLE IF NOT EXISTS hero_banners (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          title varchar(255) NOT NULL DEFAULT 'TDC Coding Quest Season 3',
+          subtitle text DEFAULT 'Innovate • Build • Collaborate',
+          tag varchar(50) NOT NULL DEFAULT 'COMING SOON',
+          badge_text varchar(50),
+          button_text varchar(100) NOT NULL DEFAULT 'Register Now',
+          action_url text DEFAULT 'https://forms.gle/nkSmmE9EU31os5UU8',
+          action_type varchar(50) NOT NULL DEFAULT 'URL',
+          is_active boolean NOT NULL DEFAULT true,
+          updated_by varchar(128) REFERENCES users(firebase_uid) ON DELETE SET NULL,
+          created_at timestamptz DEFAULT NOW() NOT NULL,
+          updated_at timestamptz DEFAULT NOW() NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS hero_banners_is_active_idx ON hero_banners(is_active);
+
+        INSERT INTO hero_banners (title, subtitle, tag, button_text, action_url, action_type, is_active)
+        SELECT 'TDC Coding Quest Season 3', 'Innovate • Build • Collaborate', 'COMING SOON', 'Register Now', 'https://forms.gle/nkSmmE9EU31os5UU8', 'URL', true
+        WHERE NOT EXISTS (SELECT 1 FROM hero_banners);
       `);
-      console.log('Successfully ensured user_devices, users columns, quizzes timing, quiz attempt status, assignments.created_by, and announcements tags exist');
+      console.log('Successfully ensured user_devices, hero_banners, users columns, quizzes timing, quiz attempt status, assignments.created_by, and announcements tags exist');
     } catch (e) {
       console.error('Failed to ensure schema updates:', e);
     }

@@ -5,6 +5,7 @@ import {
   varchar,
   text,
   integer,
+  boolean,
   timestamp,
   time,
   primaryKey,
@@ -632,4 +633,72 @@ export const userDevices = pgTable(
     index('user_devices_user_id_idx').on(table.userId),
   ],
 );
+
+/* =========================================================
+   HERO BANNERS (HOMESCREEN EVENT / HACKATHON CARD)
+   ========================================================= */
+
+export const heroBanners = pgTable(
+  'hero_banners',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+
+    title: varchar('title', {
+      length: 255,
+    }).notNull(),
+
+    subtitle: text('subtitle'),
+
+    tag: varchar('tag', {
+      length: 50,
+    })
+      .default('COMING SOON')
+      .notNull(),
+
+    badgeText: varchar('badge_text', {
+      length: 50,
+    }),
+
+    buttonText: varchar('button_text', {
+      length: 100,
+    })
+      .default('Register Now')
+      .notNull(),
+
+    actionUrl: text('action_url'),
+
+    actionType: varchar('action_type', {
+      length: 50,
+    })
+      .default('URL')
+      .notNull(),
+
+    isActive: boolean('is_active')
+      .default(true)
+      .notNull(),
+
+    updatedBy: varchar('updated_by', {
+      length: 128,
+    }).references(() => users.firebaseUid, {
+      onDelete: 'set null',
+      onUpdate: 'cascade',
+    }),
+
+    createdAt: timestamp('created_at', {
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
+
+    updatedAt: timestamp('updated_at', {
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('hero_banners_is_active_idx').on(table.isActive),
+  ],
+);
+
 
