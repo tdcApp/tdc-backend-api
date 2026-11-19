@@ -12,6 +12,7 @@ import { RedisService } from '../redis/redis.service';
 import { assignments, assignmentSubmissions, classes, users } from '../database/schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { CreateAssignmentDto } from './dto/create-assignment.dto';
+import type { UpdateAssignmentDto } from './dto/update-assignment.dto';
 import type { SubmitAssignmentDto } from './dto/submit-assignment.dto';
 
 @Injectable()
@@ -301,9 +302,9 @@ export class AssignmentsService {
     return submission;
   }
 
-  async deleteAssignment(assignmentId: string, firebaseUid: string) {
+  async updateAssignment(assignmentId: string, firebaseUid: string, dto: UpdateAssignmentDto) {
     const [assignment] = await this.databaseService.db
-      .select({ id: assignments.id, classId: assignments.classId })
+      .select({ id: assignments.id, classId: assignments.classId, createdBy: assignments.createdBy })
       .from(assignments)
       .where(eq(assignments.id, assignmentId))
       .limit(1);
@@ -322,15 +323,85 @@ export class AssignmentsService {
       throw new UnauthorizedException();
     }
 
-    // Admin and Teacher can delete any assignment
-    if (user.role !== 'ADMIN' && user.role !== 'TEACHER') {
+    if (user.role !== 'ADMIN') {
       const [classRecord] = await this.databaseService.db
         .select({ mentorUid: classes.mentorUid })
         .from(classes)
         .where(eq(classes.id, assignment.classId))
         .limit(1);
 
-      if (!classRecord || classRecord.mentorUid !== firebaseUid) {
+      const isOwner = assignment.createdBy === firebaseUid;
+      const isMentor = classRecord?.mentorUid === firebaseUid;
+      if (!isOwner && !isMentor) {
+        throw new ForbiddenException('You can only update assignments for your own classes');
+      }
+    }
+
+    // If changing classId, verify new class exists
+    if (dto.classId && dto.classId !== assignment.classId) {
+      const [newClass] = await this.databaseService.db
+        .select({ id: classes.id, mentorUid: classes.mentorUid })
+        .from(classes)
+        .where(eq(classes.id, dto.classId))
+        .limit(1);
+
+      if (!newClass) {
+        throw new NotFoundException('Target class not found');
+      }
+
+      if (user.role !== 'ADMIN' && newClass.mentorUid !== firebaseUid) {
+        throw new ForbiddenException('You can only assign work to classes you mentor');
+      }
+    }
+
+    const updateData: Record<string, any> = {
+      updatedAt: new Date(),
+    };
+    if (dto.title !== undefined) updateData.title = dto.title;
+    if (dto.description !== undefined) updateData.description = dto.description;
+    if (dto.dueAt !== undefined) updateData.dueAt = new Date(dto.dueAt);
+    if (dto.classId !== undefined) updateData.classId = dto.classId;
+
+    const [updated] = await this.databaseService.db
+      .update(assignments)
+      .set(updateData)
+      .where(eq(assignments.id, assignmentId))
+      .returning();
+
+    return updated;
+  }
+
+  async deleteAssignment(assignmentId: string, firebaseUid: string) {
+    const [assignment] = await this.databaseService.db
+      .select({ id: assignments.id, classId: assignments.classId, createdBy: assignments.createdBy })
+      .from(assignments)
+      .where(eq(assignments.id, assignmentId))
+      .limit(1);
+
+    if (!assignment) {
+      throw new NotFoundException('Assignment not found');
+    }
+
+    const [user] = await this.databaseService.db
+      .select({ role: users.role })
+      .from(users)
+      .where(eq(users.firebaseUid, firebaseUid))
+      .limit(1);
+
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+
+    if (user.role !== 'ADMIN') {
+      const [classRecord] = await this.databaseService.db
+        .select({ mentorUid: classes.mentorUid })
+        .from(classes)
+        .where(eq(classes.id, assignment.classId))
+        .limit(1);
+
+      const isOwner = assignment.createdBy === firebaseUid;
+      const isMentor = classRecord?.mentorUid === firebaseUid;
+      if (!isOwner && !isMentor) {
         throw new ForbiddenException('You can only delete assignments for your own classes');
       }
     }

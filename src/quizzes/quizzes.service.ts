@@ -564,7 +564,12 @@ export class QuizzesService {
     const user = await this.getUserProfile(firebaseUid);
 
     const [quiz] = await this.databaseService.db
-      .select({ id: quizzes.id, targetYears: quizzes.targetYears, resultVisibility: quizzes.resultVisibility })
+      .select({
+        id: quizzes.id,
+        targetYears: quizzes.targetYears,
+        resultVisibility: quizzes.resultVisibility,
+        totalTime: quizzes.totalTime,
+      })
       .from(quizzes)
       .where(eq(quizzes.id, quizId))
       .limit(1);
@@ -589,7 +594,25 @@ export class QuizzesService {
       throw new BadRequestException('Quiz has no questions');
     }
 
-    const isDisqualified = Boolean(dto.isDisqualified || dto.is_disqualified);
+    // Server-side timing validation (backward-compatible with older app versions / network dropouts)
+    const submittedAt = new Date();
+    const clientStartedAt = (dto.startedAt || dto.started_at) ? new Date((dto.startedAt || dto.started_at)!) : null;
+    const effectiveStartedAt = existingSubmission?.startedAt
+      ? new Date(existingSubmission.startedAt)
+      : (clientStartedAt || submittedAt);
+
+    const totalAllowedSeconds = (quiz.totalTime || 30) * 60;
+    const gracePeriodSeconds = 90; // 90 seconds grace period for network latency / mobile network handoff
+    const timeTakenSeconds = Math.max(0, Math.round((submittedAt.getTime() - effectiveStartedAt.getTime()) / 1000));
+    const isTimeExpired = timeTakenSeconds > (totalAllowedSeconds + gracePeriodSeconds);
+
+    const isDisqualified = Boolean(
+      isTimeExpired ||
+      (existingSubmission?.warningCount ?? 0) >= 3 ||
+      existingSubmission?.status === 'DISQUALIFIED' ||
+      dto.isDisqualified ||
+      dto.is_disqualified,
+    );
 
     // Build answer map
     const answers = dto.answers || [];
@@ -604,14 +627,6 @@ export class QuizzesService {
       }
     }
 
-    const startedAt = (dto.startedAt || dto.started_at) ? new Date((dto.startedAt || dto.started_at)!) : null;
-    const submittedAt = new Date();
-    let timeTakenSeconds = dto.timeTakenSeconds ?? dto.time_taken_seconds;
-    const effectiveStartedAt = existingSubmission?.startedAt || startedAt;
-    if (timeTakenSeconds === undefined && effectiveStartedAt) {
-      timeTakenSeconds = Math.max(0, Math.round((submittedAt.getTime() - new Date(effectiveStartedAt).getTime()) / 1000));
-    }
-
     const finalStatus = isDisqualified ? 'DISQUALIFIED' : 'COMPLETED';
 
     try {
@@ -624,13 +639,15 @@ export class QuizzesService {
             totalQuestions: questions.length,
             status: finalStatus,
             submittedAt,
-            timeTakenSeconds: timeTakenSeconds ?? null,
+            timeTakenSeconds,
+            clientSubmissionId: dto.clientSubmissionId || existingSubmission.clientSubmissionId,
           })
           .where(and(eq(quizSubmissions.quizId, quizId), eq(quizSubmissions.studentUid, firebaseUid)))
           .returning();
 
         savedSubmission = submission;
       } else {
+        // Backward-compatibility fallback: older app version (<= v2.6.0) or start request failed
         const [submission] = await this.databaseService.db
           .insert(quizSubmissions)
           .values({
@@ -639,15 +656,19 @@ export class QuizzesService {
             score: isDisqualified ? 0 : score,
             totalQuestions: questions.length,
             clientSubmissionId: dto.clientSubmissionId,
-            startedAt,
+            startedAt: effectiveStartedAt,
             submittedAt,
-            timeTakenSeconds: timeTakenSeconds ?? null,
+            timeTakenSeconds,
             status: finalStatus,
             warningCount: 0,
           })
           .returning();
 
         savedSubmission = submission;
+      }
+
+      if (!savedSubmission) {
+        throw new NotFoundException('Failed to record submission');
       }
 
       const isPrivate = quiz.resultVisibility === 'PRIVATE';

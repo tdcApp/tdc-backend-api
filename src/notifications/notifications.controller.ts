@@ -2,7 +2,10 @@ import { Body, Controller, Delete, Get, Post, Query, Req, UseGuards } from '@nes
 import { NotificationsService } from './notifications.service';
 import { DatabaseService } from '../database/database.service';
 import { FirebaseAuthGuard, type AuthenticatedRequest } from '../auth/guards/firebase-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { RegisterFcmTokenDto } from './dto/register-fcm-token.dto';
+import { SendTestNotificationDto } from './dto/send-test-notification.dto';
 
 @Controller('users/fcm-token')
 @UseGuards(FirebaseAuthGuard)
@@ -30,9 +33,9 @@ export class NotificationsController {
   }
 }
 
-import { SendTestNotificationDto } from './dto/send-test-notification.dto';
-
 @Controller('notify')
+@UseGuards(FirebaseAuthGuard, RolesGuard)
+@Roles('ADMIN')
 export class NotifyController {
   constructor(
     private readonly notificationsService: NotificationsService,

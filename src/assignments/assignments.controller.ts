@@ -8,6 +8,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
@@ -20,6 +21,7 @@ import { RateLimit } from '../common/decorators/rate-limit.decorator';
 import { RateLimitGuard } from '../common/guards/rate-limit.guard';
 import { AssignmentsService } from './assignments.service';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
+import { UpdateAssignmentDto } from './dto/update-assignment.dto';
 import { SubmitAssignmentDto } from './dto/submit-assignment.dto';
 
 @Controller('assignments')
@@ -45,6 +47,18 @@ export class AssignmentsController {
   @Roles('TEACHER', 'ADMIN')
   create(@Req() request: AuthenticatedRequest, @Body() dto: CreateAssignmentDto) {
     return this.assignmentsService.create(request.user.uid, dto);
+  }
+
+  /** PUT /assignments/:id — Teacher/Admin: update assignment */
+  @Put(':id')
+  @UseGuards(RolesGuard)
+  @Roles('TEACHER', 'ADMIN')
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: UpdateAssignmentDto,
+  ) {
+    return this.assignmentsService.updateAssignment(id, request.user.uid, dto);
   }
 
   /** POST /assignments/:id/submit — Student: submit assignment URL (Rate limited: 5 / min) */
