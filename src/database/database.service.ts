@@ -61,8 +61,26 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           updated_at timestamptz DEFAULT NOW() NOT NULL
         );
         CREATE INDEX IF NOT EXISTS hero_banners_is_active_idx ON hero_banners(is_active);
+
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS gender varchar(20);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS bio text;
+
+        CREATE TABLE IF NOT EXISTS class_change_requests (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          student_uid varchar(128) NOT NULL REFERENCES users(firebase_uid) ON DELETE CASCADE,
+          requested_language_class_id uuid REFERENCES classes(id) ON DELETE SET NULL,
+          requested_technology_class_id uuid REFERENCES classes(id) ON DELETE SET NULL,
+          reason text,
+          status varchar(20) NOT NULL DEFAULT 'PENDING',
+          reviewed_by varchar(128) REFERENCES users(firebase_uid) ON DELETE SET NULL,
+          reviewed_at timestamptz,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS class_change_requests_student_idx ON class_change_requests(student_uid);
+        CREATE INDEX IF NOT EXISTS class_change_requests_status_idx ON class_change_requests(status);
       `);
-      console.log('Successfully ensured user_devices, hero_banners, users columns, quizzes timing, quiz attempt status, assignments.created_by, and announcements tags exist');
+      console.log('Successfully ensured user_devices, hero_banners, users gender/bio, class_change_requests, users columns, quizzes timing, quiz attempt status, assignments.created_by, and announcements tags exist');
     } catch (e) {
       console.error('Failed to ensure schema updates:', e);
     }

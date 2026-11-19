@@ -71,6 +71,12 @@ export const users = pgTable(
       length: 100,
     }),
 
+    gender: varchar('gender', {
+      length: 20,
+    }),
+
+    bio: text('bio'),
+
     createdAt: timestamp('created_at', {
       withTimezone: true,
     })
@@ -700,5 +706,71 @@ export const heroBanners = pgTable(
     index('hero_banners_is_active_idx').on(table.isActive),
   ],
 );
+
+/* =========================================================
+   CLASS CHANGE REQUESTS (STUDENT TRACK SWITCHING)
+   ========================================================= */
+
+export const classChangeRequests = pgTable(
+  'class_change_requests',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+
+    studentUid: varchar('student_uid', {
+      length: 128,
+    })
+      .notNull()
+      .references((): AnyPgColumn => users.firebaseUid, {
+        onDelete: 'cascade',
+        onUpdate: 'cascade',
+      }),
+
+    requestedLanguageClassId: uuid('requested_language_class_id').references((): AnyPgColumn => classes.id, {
+      onDelete: 'set null',
+      onUpdate: 'cascade',
+    }),
+
+    requestedTechnologyClassId: uuid('requested_technology_class_id').references((): AnyPgColumn => classes.id, {
+      onDelete: 'set null',
+      onUpdate: 'cascade',
+    }),
+
+    reason: text('reason'),
+
+    status: varchar('status', {
+      length: 20,
+    })
+      .notNull()
+      .default('PENDING'),
+
+    reviewedBy: varchar('reviewed_by', {
+      length: 128,
+    }).references((): AnyPgColumn => users.firebaseUid, {
+      onDelete: 'set null',
+      onUpdate: 'cascade',
+    }),
+
+    reviewedAt: timestamp('reviewed_at', {
+      withTimezone: true,
+    }),
+
+    createdAt: timestamp('created_at', {
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
+
+    updatedAt: timestamp('updated_at', {
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('class_change_requests_student_idx').on(table.studentUid),
+    index('class_change_requests_status_idx').on(table.status),
+  ],
+);
+
 
 

@@ -131,6 +131,8 @@ export class UsersService {
         ...(mobile !== undefined && { mobileNumber: mobile }),
         ...(dto.year !== undefined && !existing.year && { year: dto.year }),
         ...(enrollment !== undefined && { enrollmentNumber: enrollment }),
+        ...(dto.gender !== undefined && { gender: dto.gender }),
+        ...(dto.bio !== undefined && { bio: dto.bio }),
         updatedAt: new Date(),
       })
       .where(eq(users.firebaseUid, firebaseUid))
@@ -138,6 +140,19 @@ export class UsersService {
 
     await this.redisService.del(`user:profile:${firebaseUid}`);
     return updated;
+  }
+
+  async findAllTeachers() {
+    return this.databaseService.db
+      .select({
+        firebaseUid: users.firebaseUid,
+        name: users.name,
+        email: users.email,
+        mobileNumber: users.mobileNumber,
+        role: users.role,
+      })
+      .from(users)
+      .where(or(eq(users.role, 'TEACHER'), eq(users.role, 'ADMIN')));
   }
 
   async findAllStudents(classId?: string) {

@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import type { AuthenticatedRequest } from '../auth/guards/firebase-auth.guard';
 import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
@@ -58,5 +60,12 @@ export class UsersController {
   ): Promise<UserResponseDto> {
     const user = await this.usersService.updateProfile(request.user.uid, dto);
     return UserResponseMapper.toDto(user);
+  }
+
+  @Get('teachers')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'TEACHER')
+  async getTeachers() {
+    return this.usersService.findAllTeachers();
   }
 }

@@ -10,6 +10,8 @@ export class UserResponseDto {
   technologyClassId!: string | null;
   year!: string | null;
   enrollmentNumber!: string | null;
+  gender!: string | null;
+  bio!: string | null;
   createdAt!: Date;
   updatedAt!: Date;
 }

@@ -32,4 +32,14 @@ export class UpdateUserDto {
   @IsString()
   @Length(1, 100)
   enrollment_number?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 20)
+  gender?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 500)
+  bio?: string;
 }
