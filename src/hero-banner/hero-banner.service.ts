@@ -32,14 +32,14 @@ export class HeroBannerService {
     if (!banner) {
       const fallback = {
         id: null,
-        title: 'TDC Coding Quest Season 3',
-        subtitle: 'Innovate • Build • Collaborate',
-        tag: 'COMING SOON',
+        title: 'TDC Hackathon & Events',
+        subtitle: 'Stay tuned for upcoming hackathons, workshops, and challenges',
+        tag: 'UPCOMING',
         badgeText: null,
-        buttonText: 'Register Now',
-        actionUrl: 'https://forms.gle/nkSmmE9EU31os5UU8',
+        buttonText: 'Learn More',
+        actionUrl: null,
         actionType: 'URL',
-        isActive: true,
+        isActive: false,
       };
       return fallback;
     }
