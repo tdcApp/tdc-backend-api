@@ -231,6 +231,48 @@ export class ClassesService {
     return updated;
   }
 
+  async deleteClass(id: string) {
+    const [existing] = await this.databaseService.db
+      .select()
+      .from(classes)
+      .where(eq(classes.id, id))
+      .limit(1);
+
+    if (!existing) {
+      throw new NotFoundException('Class not found');
+    }
+
+    const affectedStudents = await this.databaseService.db
+      .select({ firebaseUid: users.firebaseUid })
+      .from(users)
+      .where(or(eq(users.languageClassId, id), eq(users.technologyClassId, id)));
+
+    await this.databaseService.db
+      .update(users)
+      .set({ languageClassId: null, updatedAt: new Date() })
+      .where(eq(users.languageClassId, id));
+
+    await this.databaseService.db
+      .update(users)
+      .set({ technologyClassId: null, updatedAt: new Date() })
+      .where(eq(users.technologyClassId, id));
+
+    await this.databaseService.db
+      .delete(classes)
+      .where(eq(classes.id, id));
+
+    await this.invalidateClassCache();
+    if (existing.mentorUid) {
+      await this.redisService.del(`classes:user:${existing.mentorUid}`);
+    }
+    for (const student of affectedStudents) {
+      await this.redisService.del(`user:profile:${student.firebaseUid}`);
+      await this.redisService.del(`classes:user:${student.firebaseUid}`);
+    }
+
+    return { message: 'Class deleted successfully' };
+  }
+
   async createChangeRequest(studentUid: string, dto: CreateClassChangeRequestDto) {
     if (!dto.requestedLanguageClassId && !dto.requestedTechnologyClassId) {
       throw new BadRequestException('Please select at least one class to change');

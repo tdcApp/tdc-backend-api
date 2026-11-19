@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -92,6 +95,15 @@ export class ClassesController {
     @Body() dto: UpdateClassDto,
   ) {
     return this.classesService.updateClass(id, dto);
+  }
+
+  /** DELETE /classes/:id — Admin: permanently delete batch */
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  deleteClass(@Param('id', ParseUUIDPipe) id: string) {
+    return this.classesService.deleteClass(id);
   }
 
   /** GET /classes/:id/students — Teacher/Admin: only authorized faculty can view student rosters */
